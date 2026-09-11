@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { motion, useInView, useReducedMotion } from 'framer-motion'
 import {
   ArrowRight,
   BarChart3,
@@ -104,10 +105,101 @@ function FeatureCard({ icon: Icon, title, body }: (typeof featureCards)[number])
   )
 }
 
+const solAssemble = [
+  { x: -120, y: 40, rotate: -8 },
+  { x: 120, y: -30, rotate: 7 },
+  { x: -70, y: 80, rotate: 5 },
+  { x: 100, y: 50, rotate: -6 },
+]
+
+const solDelays = [0.18, 0.42, 0.66, 0.9]
+
+function SolutionsGrid({
+  reduceMotion,
+  narrow,
+}: {
+  reduceMotion: boolean | null
+  narrow: boolean
+}) {
+  const gridRef = useRef<HTMLDivElement>(null)
+  const inView = useInView(gridRef, { amount: 0.2, once: false })
+
+  return (
+    <div className="lp-sol-grid" ref={gridRef}>
+      {solutions.map((item, index) => {
+        const Icon = item.icon
+        const scatter = solAssemble[index] ?? solAssemble[0]
+        const delay = solDelays[index] ?? 0.1
+        const factor = narrow ? 0.35 : 1
+        const hidden = {
+          opacity: 0,
+          scale: 0.85,
+          x: scatter.x * factor,
+          y: scatter.y * factor,
+          rotate: scatter.rotate * (narrow ? 0.5 : 1),
+        }
+        const visible = {
+          opacity: 1,
+          scale: 1,
+          x: 0,
+          y: 0,
+          rotate: 0,
+        }
+        return (
+          <motion.article
+            key={item.title}
+            className="lp-sol-card"
+            initial={reduceMotion ? false : hidden}
+            animate={reduceMotion ? visible : inView ? visible : hidden}
+            transition={
+              reduceMotion
+                ? { duration: 0 }
+                : {
+                    type: 'spring',
+                    stiffness: 55,
+                    damping: 18,
+                    delay: inView ? delay : 0,
+                  }
+            }
+            whileHover={
+              reduceMotion
+                ? undefined
+                : {
+                    y: -8,
+                    transition: { type: 'spring', stiffness: 300, damping: 20 },
+                  }
+            }
+          >
+            <div className="lp-sol-media">
+              <img src={item.image} alt="" style={{ objectPosition: item.pos }} />
+              <span className="lp-sol-ico"><Icon size={16} /></span>
+            </div>
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+            <Link to="/login" className="lp-link">
+              Learn More <ArrowRight size={14} aria-hidden />
+            </Link>
+          </motion.article>
+        )
+      })}
+    </div>
+  )
+}
+
 export function LandingPage() {
   const [sent, setSent] = useState(false)
+  const [narrow, setNarrow] = useState(false)
   const heroRef = useRef<HTMLElement>(null)
   const bgRef = useRef<HTMLDivElement>(null)
+  const reduceMotion = useReducedMotion()
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)')
+    const sync = () => setNarrow(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
 
   useEffect(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -161,10 +253,11 @@ export function LandingPage() {
       <section className="lp-hero" id="top" ref={heroRef}>
         <div className="lp-hero-bg" aria-hidden ref={bgRef}>
           <img
-            src="/landing-hero-bg.jpg?v=african-hd"
+            src="/landing-hero-bg.jpg?v=sharp"
             alt=""
             width={1280}
             height={720}
+            sizes="100vw"
             decoding="async"
             fetchPriority="high"
           />
@@ -179,8 +272,10 @@ export function LandingPage() {
               Human Resource Management System
             </p>
             <h1 className="lp-anim lp-anim-2">
-              Empowering People.<br />
-              <span className="lp-hero-accent">Simplifying HR.</span>
+              <span className="lp-hero-title-main">Empowering People.</span>
+              <span className="lp-hero-title-sub">
+                Simplifying <span className="lp-gold-word">HR</span>.
+              </span>
             </h1>
             <p className="lp-lede lp-anim lp-anim-3">
               A smarter way to manage employees, attendance, performance and everyday
@@ -251,24 +346,7 @@ export function LandingPage() {
               to performance, payroll readiness, and clear HR analytics.
             </p>
           </div>
-          <div className="lp-sol-grid">
-            {solutions.map((item) => {
-              const Icon = item.icon
-              return (
-                <article key={item.title} className="lp-sol-card">
-                  <div className="lp-sol-media">
-                    <img src={item.image} alt="" style={{ objectPosition: item.pos }} />
-                    <span className="lp-sol-ico"><Icon size={16} /></span>
-                  </div>
-                  <h3>{item.title}</h3>
-                  <p>{item.body}</p>
-                  <Link to="/login" className="lp-link">
-                    Learn More <ArrowRight size={14} aria-hidden />
-                  </Link>
-                </article>
-              )
-            })}
-          </div>
+          <SolutionsGrid reduceMotion={reduceMotion} narrow={narrow} />
         </div>
       </section>
 
