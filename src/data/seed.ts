@@ -1,23 +1,12 @@
 import type {
-  Announcement,
   AppState,
-  Application,
   AttendanceRecord,
   Department,
   Employee,
-  Goal,
-  HRDocument,
-  Interview,
   LeaveBalance,
   LeaveRequest,
   OrgSettings,
-  PayrollRecord,
-  PerformanceReview,
   Position,
-  TrainingAssignment,
-  TrainingProgram,
-  Vacancy,
-  WorkTask,
 } from '../types'
 import { fullName } from '../types'
 
@@ -337,200 +326,6 @@ const leaveRequests: LeaveRequest[] = [
   },
 ]
 
-function payrolls(): PayrollRecord[] {
-  const rows: PayrollRecord[] = []
-  const periods = ['2026-07', '2026-08']
-  let n = 0
-  for (const period of periods) {
-    for (const e of employees) {
-      n += 1
-      const allowances = e.housingAllowance + e.transportAllowance + e.otherAllowance
-      const deductions = Math.round(e.basicSalary * 0.02)
-      const tax = Math.round((e.basicSalary + allowances) * e.taxRate)
-      rows.push({
-        id: `pay${n}`, employeeId: e.id, period, basicSalary: e.basicSalary,
-        housing: e.housingAllowance, transport: e.transportAllowance, other: e.otherAllowance,
-        deductions, tax, net: e.basicSalary + allowances - deductions - tax,
-        status: 'Paid', processedAt: `${period}-28T10:00:00`,
-      })
-    }
-  }
-  return rows
-}
-
-const vacancies: Vacancy[] = [
-  {
-    id: 'v1', title: 'Marketing Executive', departmentId: 'd3', location: 'Lusaka · Hybrid',
-    employmentType: 'Full-time',
-    description: 'Plan campaigns and client content for ZamTech products across Lusaka and the Copperbelt.',
-    closingDate: '2026-09-30', status: 'Open', createdAt: '2026-08-12',
-  },
-  {
-    id: 'v2', title: 'HR Coordinator', departmentId: 'd1', location: 'Lusaka · On-site',
-    employmentType: 'Full-time',
-    description: 'Support onboarding, employee records, and the daily rhythm of Human Resources.',
-    closingDate: '2026-09-18', status: 'Open', createdAt: '2026-08-20',
-  },
-  {
-    id: 'v3', title: 'Software Engineer', departmentId: 'd2', location: 'Lusaka · Hybrid',
-    employmentType: 'Full-time',
-    description: 'Build and maintain client systems with the Information Technology team.',
-    closingDate: '2026-10-10', status: 'Open', createdAt: '2026-08-28',
-  },
-  {
-    id: 'v4', title: 'Customer Service Intern', departmentId: 'd5', location: 'Lusaka',
-    employmentType: 'Intern',
-    description: 'A 6-month internship supporting the call desk and client follow-up.',
-    closingDate: '2026-08-31', status: 'Closed', createdAt: '2026-07-01',
-  },
-]
-
-const applications: Application[] = [
-  { id: 'ap1', vacancyId: 'v1', candidateName: 'Mutale Mwansa', email: 'mutale.m@example.com', phone: '+260 97 100 8891', stage: 'Interview', appliedAt: '2026-08-18', notes: 'Strong campaign portfolio. UNZA graduate.' },
-  { id: 'ap2', vacancyId: 'v1', candidateName: 'Chama Kalumba', email: 'chama.k@example.com', phone: '+260 96 200 4410', stage: 'Shortlisted', appliedAt: '2026-08-21', notes: 'Digital and radio mix.' },
-  { id: 'ap3', vacancyId: 'v2', candidateName: 'Bupe Chanda', email: 'bupe.c@example.com', phone: '+260 95 300 2218', stage: 'Screening', appliedAt: '2026-08-25', notes: 'HR diploma, warm communicator.' },
-  { id: 'ap4', vacancyId: 'v2', candidateName: 'Musonda Kabwe', email: 'musonda.k@example.com', phone: '+260 97 400 1182', stage: 'Applied', appliedAt: '2026-09-01', notes: '' },
-  { id: 'ap5', vacancyId: 'v3', candidateName: 'Tapson Banda', email: 'tapson.b@example.com', phone: '+260 96 500 7731', stage: 'Selected', appliedAt: '2026-08-30', notes: 'Offer pending references.' },
-  { id: 'ap6', vacancyId: 'v3', candidateName: 'Namukolo Mweemba', email: 'namukolo.m@example.com', phone: '+260 97 600 3344', stage: 'Rejected', appliedAt: '2026-08-29', notes: 'Strong developer, not a match for this stack.' },
-  { id: 'ap7', vacancyId: 'v1', candidateName: 'Lydia Mutale', email: 'lydia.m@example.com', phone: '+260 95 700 9910', stage: 'Hired', appliedAt: '2026-08-14', notes: 'Joined as contractor support.' },
-]
-
-const interviews: Interview[] = [
-  { id: 'i1', applicationId: 'ap1', scheduledAt: '2026-09-09T10:00:00', interviewer: 'Mulenga Tembo', location: 'ZamTech · 2nd floor', notes: 'Portfolio walkthrough and campaign case.' },
-  { id: 'i2', applicationId: 'ap5', scheduledAt: '2026-09-08T14:30:00', interviewer: 'Lackson Phiri', location: 'Google Meet', notes: 'Final round with Information Technology.' },
-]
-
-const reviews: PerformanceReview[] = [
-  {
-    id: 'r1', employeeId: 'e3', reviewerId: 'e2', period: 'H1 2026', overall: 4.6, goalsAchieved: 5,
-    strengths: 'Technical depth, calm incident leadership, generous mentoring of Blessings.',
-    improvements: 'Delegate earlier on platform work; protect focus time.',
-    managerComments: 'Chanda is a cornerstone of the IT culture.',
-    employeeComments: 'Grateful for the stretch on reliability work. Would like more client exposure.',
-    createdAt: '2026-07-02',
-  },
-  {
-    id: 'r2', employeeId: 'e6', reviewerId: 'e4', period: 'H1 2026', overall: 3.8, goalsAchieved: 3,
-    strengths: 'Relationship-building and persistence on long cycles.',
-    improvements: 'Forecast accuracy and CRM hygiene.',
-    managerComments: 'Solid half. Tighten weekly pipeline reviews.',
-    employeeComments: 'Agreed — I will keep the board current.',
-    createdAt: '2026-07-04',
-  },
-  {
-    id: 'r3', employeeId: 'e12', reviewerId: 'e2', period: 'Probation 90d', overall: 4.2, goalsAchieved: 4,
-    strengths: 'Craft quality, curiosity, excellent pairing.',
-    improvements: 'Broader system context beyond the UI layer.',
-    managerComments: 'Confirmed in role. Keep pairing with Chanda on architecture.',
-    employeeComments: 'The onboarding path was clear and kind.',
-    createdAt: '2026-06-20',
-  },
-  {
-    id: 'r4', employeeId: 'e7', reviewerId: 'e1', period: 'H1 2026', overall: 4.8, goalsAchieved: 6,
-    strengths: 'Judgement, discretion, and employee trust.',
-    improvements: 'Document playbooks so the team can scale.',
-    managerComments: 'Mwaka is ready for a larger HR Officer scope.',
-    employeeComments: 'I would like to own onboarding end-to-end.',
-    createdAt: '2026-07-01',
-  },
-]
-
-const goals: Goal[] = [
-  { id: 'g1', employeeId: 'e3', title: 'Reduce P1 incident time-to-recover', kpi: 'MTTR < 45 min', progress: 72, dueDate: '2026-12-15' },
-  { id: 'g2', employeeId: 'e3', title: 'Mentor two engineers to ship independently', kpi: '2 confirmed owners', progress: 50, dueDate: '2026-11-30' },
-  { id: 'g3', employeeId: 'e6', title: 'Close Q3 enterprise pipeline', kpi: 'K2.4m booked', progress: 64, dueDate: '2026-09-30' },
-  { id: 'g4', employeeId: 'e12', title: 'Ship employee self-service attendance', kpi: 'Released to prod', progress: 88, dueDate: '2026-09-20' },
-  { id: 'g5', employeeId: 'e10', title: 'Department headcount dashboard', kpi: 'Weekly auto-report', progress: 40, dueDate: '2026-10-01' },
-]
-
-const trainings: TrainingProgram[] = [
-  {
-    id: 't1', title: 'People Leadership Studio',
-    description: 'A three-session studio on feedback, 1:1s, and fair performance conversations.',
-    trainer: 'Natasha Banda', date: '2026-09-16', duration: '6 hours',
-    location: 'ZamTech boardroom, Lusaka', status: 'Upcoming',
-  },
-  {
-    id: 't2', title: 'Secure Engineering Practices',
-    description: 'Threat modelling, secrets hygiene, and practical reviews for product teams.',
-    trainer: 'Andrew Sakala', date: '2026-08-20', duration: '4 hours',
-    location: 'IT lab', status: 'Completed',
-  },
-  {
-    id: 't3', title: 'Customer Conversation Craft',
-    description: 'Discovery questions, objection handling, and writing that earns trust.',
-    trainer: 'Gift Mwanza', date: '2026-09-11', duration: '3 hours',
-    location: 'Customer Service floor', status: 'In Progress',
-  },
-  {
-    id: 't4', title: 'Payroll & ZRA Refresh',
-    description: 'NAPSA, PAYE, leave accruals, and payslip accuracy in Kwacha.',
-    trainer: 'Chileshe Banda', date: '2026-10-02', duration: '2 hours',
-    location: 'Finance room + virtual', status: 'Upcoming',
-  },
-]
-
-const trainingAssignments: TrainingAssignment[] = [
-  { id: 'ta1', trainingId: 't1', employeeId: 'e2', progress: 0, completed: false, certificate: false },
-  { id: 'ta2', trainingId: 't1', employeeId: 'e4', progress: 0, completed: false, certificate: false },
-  { id: 'ta3', trainingId: 't1', employeeId: 'e9', progress: 0, completed: false, certificate: false },
-  { id: 'ta4', trainingId: 't2', employeeId: 'e3', progress: 100, completed: true, certificate: true },
-  { id: 'ta5', trainingId: 't2', employeeId: 'e8', progress: 100, completed: true, certificate: true },
-  { id: 'ta6', trainingId: 't2', employeeId: 'e12', progress: 100, completed: true, certificate: true },
-  { id: 'ta7', trainingId: 't2', employeeId: 'e14', progress: 100, completed: true, certificate: true },
-  { id: 'ta8', trainingId: 't3', employeeId: 'e6', progress: 45, completed: false, certificate: false },
-  { id: 'ta9', trainingId: 't3', employeeId: 'e13', progress: 20, completed: false, certificate: false },
-  { id: 'ta10', trainingId: 't4', employeeId: 'e7', progress: 0, completed: false, certificate: false },
-  { id: 'ta11', trainingId: 't4', employeeId: 'e15', progress: 0, completed: false, certificate: false },
-  { id: 'ta12', trainingId: 't1', employeeId: 'e5', progress: 0, completed: false, certificate: false },
-]
-
-const documents: HRDocument[] = [
-  { id: 'doc1', name: 'Employment Contract — Chanda Mwila', category: 'Contracts', ownerId: 'e3', visibility: 'employee', uploadedAt: '2021-02-08', size: '240 KB', content: 'Standard ZamTech Solutions Ltd employment agreement covering role, remuneration in Zambian Kwacha, and confidentiality.' },
-  { id: 'doc2', name: 'Offer Letter — Blessings Mumba', category: 'Offer letters', ownerId: 'e12', visibility: 'employee', uploadedAt: '2024-02-20', size: '128 KB', content: 'Offer of employment as Software Developer reporting to Lackson Phiri. Basic salary K8,000 plus allowances.' },
-  { id: 'doc3', name: 'Remote Work Policy 2026', category: 'Policies', ownerId: null, visibility: 'all', uploadedAt: '2026-01-15', size: '310 KB', content: 'Hybrid working rhythm: core hours 09:30–15:30, two office days at Rhodes Park for most teams.' },
-  { id: 'doc4', name: 'Leave Policy', category: 'Policies', ownerId: null, visibility: 'all', uploadedAt: '2025-12-01', size: '198 KB', content: 'Annual, sick, parental, and unpaid leave rules including notice periods under Zambian employment law.' },
-  { id: 'doc5', name: 'Secure Engineering Certificate — Chanda Mwila', category: 'Certificates', ownerId: 'e3', visibility: 'employee', uploadedAt: '2026-08-20', size: '96 KB', content: 'Completed Secure Engineering Practices with distinction.' },
-  { id: 'doc6', name: 'H1 Performance Pack — Information Technology', category: 'Performance', ownerId: null, visibility: 'hr', uploadedAt: '2026-07-08', size: '1.2 MB', content: 'Aggregated ratings, calibration notes, and promotion recommendations.' },
-  { id: 'doc7', name: 'Code of Conduct', category: 'Policies', ownerId: null, visibility: 'all', uploadedAt: '2025-03-01', size: '150 KB', content: 'How we treat one another, clients, and information at ZamTech Solutions Ltd.' },
-]
-
-const announcements: Announcement[] = [
-  {
-    id: 'an1', title: 'Independence Day office close',
-    body: 'The Lusaka office will close at 13:00 on 23 October ahead of Independence Day. Please submit leave if you are taking Friday as well.',
-    authorId: 'e1', category: 'Holidays', date: '2026-09-05', pinned: true,
-  },
-  {
-    id: 'an2', title: 'September all-hands',
-    body: 'Join us Thursday 10 September, 16:00 in the ZamTech boardroom. We will share Q3 people metrics and the 2027 hiring plan.',
-    authorId: 'e1', category: 'Meetings', date: '2026-09-02', pinned: true,
-  },
-  {
-    id: 'an3', title: 'Updated remote work policy',
-    body: 'Core hours are now 09:30–15:30. Two office days in Rhodes Park remain the default. Read the policy in Documents.',
-    authorId: 'e7', category: 'Policy', date: '2026-08-18', pinned: false,
-  },
-  {
-    id: 'an4', title: 'Marketing open afternoon',
-    body: 'Marketing hosts an open campaign review Friday 12 September, 14:00. All departments welcome.',
-    authorId: 'e4', category: 'Events', date: '2026-09-06', pinned: false,
-  },
-  {
-    id: 'an5', title: 'Payroll cut-off reminder',
-    body: 'August adjustments close 18 September at 12:00. Speak to Chileshe Banda for overtime or expense queries.',
-    authorId: 'e15', category: 'Notice', date: '2026-09-04', pinned: false,
-  },
-]
-
-const tasks: WorkTask[] = [
-  { id: 'tk1', title: 'Ship attendance calendar polish', description: 'Complete empty states and mobile card layout for self-service attendance.', assigneeId: 'e12', assignerId: 'e2', dueDate: '2026-09-12', status: 'In Progress', priority: 'High' },
-  { id: 'tk2', title: 'Q3 reliability retro notes', description: 'Summarise P1s and proposed runbook updates.', assigneeId: 'e3', assignerId: 'e2', dueDate: '2026-09-09', status: 'To Do', priority: 'Medium' },
-  { id: 'tk3', title: 'Prepare Mutale interview pack', description: 'Print campaign samples and scorecard for Tuesday.', assigneeId: 'e4', assignerId: 'e11', dueDate: '2026-09-08', status: 'To Do', priority: 'High' },
-  { id: 'tk4', title: 'Refresh onboarding checklist', description: 'Add laptop imaging and buddy matching steps.', assigneeId: 'e7', assignerId: 'e1', dueDate: '2026-09-15', status: 'In Progress', priority: 'Medium' },
-  { id: 'tk5', title: 'Follow up MTN Zambia renewal', description: 'Send commercial proposal and book success review.', assigneeId: 'e6', assignerId: 'e4', dueDate: '2026-09-10', status: 'To Do', priority: 'High' },
-  { id: 'tk6', title: 'Department payroll variance note', description: 'Explain August overtime spike in Information Technology.', assigneeId: 'e15', assignerId: 'e5', dueDate: '2026-09-11', status: 'Done', priority: 'Low' },
-]
 
 export function buildSeed(today = new Date(2026, 8, 7)): AppState {
   const attendance = generateAttendance(today)
@@ -541,34 +336,17 @@ export function buildSeed(today = new Date(2026, 8, 7)): AppState {
     attendance,
     leaveBalances: leaveBalances(),
     leaveRequests,
-    payrolls: payrolls(),
-    vacancies,
-    applications,
-    interviews,
-    reviews,
-    goals,
-    trainings,
-    trainingAssignments,
-    documents,
-    announcements,
-    tasks,
     notifications: [
       { id: 'n1', userId: 'e1', title: 'Leave request awaiting review', body: 'Chanda Mwila submitted sick leave for 8–9 Sep.', type: 'leave', read: false, createdAt: '2026-09-06T16:41:00' },
-      { id: 'n2', userId: 'e1', title: 'New application', body: 'Musonda Kabwe applied for HR Coordinator.', type: 'recruitment', read: false, createdAt: '2026-09-01T09:12:00' },
-      { id: 'n3', userId: 'e1', title: 'Interview tomorrow', body: 'Tapson Banda · Software Engineer with Lackson Phiri.', type: 'recruitment', read: true, createdAt: '2026-09-07T08:00:00' },
-      { id: 'n4', userId: 'e2', title: 'Pending leave in Information Technology', body: 'Kelvin Phiri requested annual leave 18–22 Sep.', type: 'leave', read: false, createdAt: '2026-09-05T11:22:00' },
-      { id: 'n5', userId: 'e3', title: 'Training certificate ready', body: 'Secure Engineering Practices certificate is in Documents.', type: 'training', read: false, createdAt: '2026-08-20T17:00:00' },
-      { id: 'n6', userId: 'e3', title: 'Payslip available', body: 'August 2026 payslip has been released.', type: 'payroll', read: true, createdAt: '2026-08-28T10:05:00' },
-      { id: 'n7', userId: 'e3', title: 'New announcement', body: 'Independence Day office close published.', type: 'announcement', read: false, createdAt: '2026-09-05T09:00:00' },
-      { id: 'n8', userId: 'e12', title: 'Task assigned', body: 'Ship attendance calendar polish is due 12 Sep.', type: 'task', read: false, createdAt: '2026-09-04T11:00:00' },
+      { id: 'n2', userId: 'e2', title: 'Pending leave in Information Technology', body: 'Kelvin Phiri requested annual leave 18–22 Sep.', type: 'leave', read: false, createdAt: '2026-09-05T11:22:00' },
+      { id: 'n3', userId: 'e3', title: 'Leave approved', body: 'Your emergency leave on 14 Aug was approved.', type: 'leave', read: true, createdAt: '2026-08-14T08:05:00' },
+      { id: 'n4', userId: 'e12', title: 'Attendance reminder', body: 'Remember to clock in when you arrive.', type: 'attendance', read: false, createdAt: '2026-09-07T07:30:00' },
     ],
     activities: [
       { id: 'ac1', text: `${fullName(employees[11]!)} clocked in`, time: '2026-09-07T08:46:00', kind: 'attendance' },
       { id: 'ac2', text: `${fullName(employees[2]!)} submitted a sick leave request`, time: '2026-09-06T16:40:00', kind: 'leave' },
-      { id: 'ac3', text: 'August payroll marked as paid', time: '2026-08-28T10:00:00', kind: 'payroll' },
-      { id: 'ac4', text: `${fullName(employees[2]!)} completed a performance review`, time: '2026-07-02T14:00:00', kind: 'performance' },
-      { id: 'ac5', text: `${fullName(employees[15]!)} joined Operations`, time: '2025-11-03T09:00:00', kind: 'employee' },
-      { id: 'ac6', text: 'Musonda Kabwe applied for HR Coordinator', time: '2026-09-01T09:12:00', kind: 'recruitment' },
+      { id: 'ac3', text: `${fullName(employees[15]!)} joined Operations`, time: '2025-11-03T09:00:00', kind: 'employee' },
+      { id: 'ac4', text: 'Leave request approved for Thandiwe Zulu', time: '2026-08-14T08:05:00', kind: 'leave' },
     ],
     settings,
     leaveTypeDays: {

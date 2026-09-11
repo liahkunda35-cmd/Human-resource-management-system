@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store/Store'
-import { Avatar, Badge, Button, FormActions, Modal, PageHeader, statusTone } from '../components/ui'
+import { Avatar, Badge, Button, DataTable, FormActions, Modal, PageHeader, RowActions, statusTone } from '../components/ui'
 import { formatDate } from '../lib/format'
 import type { LeaveType } from '../types'
 import { fullName } from '../types'
@@ -36,7 +36,6 @@ export function LeavePage() {
       const name = e ? fullName(e) : ''
       return `${name} ${r.type} ${r.reason}`.toLowerCase().includes(q.toLowerCase())
     })
-  const mine = currentUser ? state.leaveBalances.find((b) => b.employeeId === currentUser.id) : null
   const selected = state.leaveRequests.find((r) => r.id === detail)
 
   return (
@@ -47,14 +46,6 @@ export function LeavePage() {
         lede={isStaff ? 'Review requests with care. Balances update on approval.' : 'Apply with dates and a reason. Your manager will review.'}
         actions={<Button variant="gold" onClick={() => setOpen(true)}>Apply for leave</Button>}
       />
-      {mine ? (
-        <div className="grid g-4">
-          <div className="card stat"><div className="label">Annual remaining</div><div className="value">{mine.annual}</div></div>
-          <div className="card stat"><div className="label">Sick remaining</div><div className="value">{mine.sick}</div></div>
-          <div className="card stat"><div className="label">Emergency</div><div className="value">{mine.emergency}</div></div>
-          <div className="card stat"><div className="label">Unpaid allowance</div><div className="value">{mine.unpaid}</div></div>
-        </div>
-      ) : null}
       {isStaff ? (
         <div className="filters">
           <input className="input" placeholder="Search employee or type" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -66,67 +57,44 @@ export function LeavePage() {
           </select>
         </div>
       ) : null}
-      <div className="card" style={{ padding: 0 }}>
-        <div className="table-wrap">
-          <table className="data responsive">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>Type</th>
-                <th>Start</th>
-                <th>End</th>
-                <th>Days</th>
-                <th>Reason</th>
-                <th>Status</th>
-                {isStaff ? <th>Actions</th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((r) => {
-                const e = state.employees.find((x) => x.id === r.employeeId)!
-                return (
-                  <tr key={r.id}>
-                    <td>
-                      <div className="person"><Avatar employee={e} /><strong>{fullName(e)}</strong></div>
-                    </td>
-                    <td>{r.type}</td>
-                    <td>{formatDate(r.startDate)}</td>
-                    <td>{formatDate(r.endDate)}</td>
-                    <td>{r.days}</td>
-                    <td className="truncate" style={{ maxWidth: 220 }}>{r.reason}</td>
-                    <td><Badge tone={statusTone(r.status)}>{r.status}</Badge></td>
-                    {isStaff ? (
-                      <td>
-                        <div className="actions">
-                          <Button size="sm" variant="ghost" onClick={() => { setDetail(r.id); setNote(r.reviewNote) }}>View</Button>
-                          {r.status === 'Pending' ? (
-                            <>
-                              <Button size="sm" variant="gold" onClick={() => currentUser && reviewLeave(r.id, 'Approved', currentUser.id, 'Approved')}>Approve</Button>
-                              <Button size="sm" variant="danger" onClick={() => currentUser && reviewLeave(r.id, 'Rejected', currentUser.id, 'Rejected')}>Reject</Button>
-                            </>
-                          ) : null}
-                        </div>
-                      </td>
-                    ) : null}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="mobile-cards" style={{ padding: 12 }}>
+      <DataTable empty={requests.length === 0} emptyTitle="No leave requests" emptyBody="Apply for leave to see requests here.">
+        <thead>
+          <tr>
+            <th>Employee</th>
+            <th>Type</th>
+            <th>Dates</th>
+            <th>Status</th>
+            {isStaff ? <th>Actions</th> : null}
+          </tr>
+        </thead>
+        <tbody>
           {requests.map((r) => {
             const e = state.employees.find((x) => x.id === r.employeeId)!
             return (
-              <div key={r.id} className="m-card">
-                <strong>{fullName(e)}</strong>
-                <p className="lede">{r.type} · {formatDate(r.startDate)} – {formatDate(r.endDate)} · {r.days}d</p>
-                <Badge tone={statusTone(r.status)}>{r.status}</Badge>
-              </div>
+              <tr key={r.id}>
+                <td>
+                  <div className="person">
+                    <Avatar employee={e} size="sm" />
+                    <strong style={{ color: 'var(--ink)' }}>{fullName(e)}</strong>
+                  </div>
+                </td>
+                <td>{r.type}</td>
+                <td>{formatDate(r.startDate)} – {formatDate(r.endDate)}</td>
+                <td><Badge tone={statusTone(r.status)}>{r.status}</Badge></td>
+                {isStaff ? (
+                  <td>
+                    <RowActions items={[
+                      { label: 'View', onClick: () => { setDetail(r.id); setNote(r.reviewNote) } },
+                      { label: 'Approve', hidden: r.status !== 'Pending', onClick: () => currentUser && reviewLeave(r.id, 'Approved', currentUser.id, 'Approved') },
+                      { label: 'Reject', danger: true, hidden: r.status !== 'Pending', onClick: () => currentUser && reviewLeave(r.id, 'Rejected', currentUser.id, 'Rejected') },
+                    ]} />
+                  </td>
+                ) : null}
+              </tr>
             )
           })}
-        </div>
-      </div>
+        </tbody>
+      </DataTable>
       <Modal open={open} title="Leave request" onClose={() => setOpen(false)}>
         <form onSubmit={(e) => {
           e.preventDefault()

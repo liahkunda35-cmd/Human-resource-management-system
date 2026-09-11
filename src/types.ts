@@ -11,32 +11,6 @@ export type LeaveType =
   | 'Emergency Leave'
   | 'Unpaid Leave'
 export type RequestStatus = 'Pending' | 'Approved' | 'Rejected'
-export type PaymentStatus = 'Draft' | 'Processed' | 'Paid'
-export type VacancyStatus = 'Open' | 'Closed' | 'On Hold'
-export type PipelineStage =
-  | 'Applied'
-  | 'Screening'
-  | 'Shortlisted'
-  | 'Interview'
-  | 'Selected'
-  | 'Hired'
-  | 'Rejected'
-export type TrainingStatus = 'Upcoming' | 'In Progress' | 'Completed'
-export type DocumentCategory =
-  | 'Contracts'
-  | 'Offer letters'
-  | 'Certificates'
-  | 'Policies'
-  | 'Performance'
-  | 'Other'
-export type TaskStatus = 'To Do' | 'In Progress' | 'Done'
-export type TaskPriority = 'Low' | 'Medium' | 'High'
-export type AnnouncementCategory =
-  | 'Meetings'
-  | 'Holidays'
-  | 'Policy'
-  | 'Notice'
-  | 'Events'
 
 export interface Employee {
   id: string
@@ -118,128 +92,6 @@ export interface LeaveRequest {
   createdAt: string
 }
 
-export interface PayrollRecord {
-  id: string
-  employeeId: string
-  period: string
-  basicSalary: number
-  housing: number
-  transport: number
-  other: number
-  deductions: number
-  tax: number
-  net: number
-  status: PaymentStatus
-  processedAt: string | null
-}
-
-export interface Vacancy {
-  id: string
-  title: string
-  departmentId: string
-  location: string
-  employmentType: EmploymentType
-  description: string
-  closingDate: string
-  status: VacancyStatus
-  createdAt: string
-}
-
-export interface Application {
-  id: string
-  vacancyId: string
-  candidateName: string
-  email: string
-  phone: string
-  stage: PipelineStage
-  appliedAt: string
-  notes: string
-}
-
-export interface Interview {
-  id: string
-  applicationId: string
-  scheduledAt: string
-  interviewer: string
-  location: string
-  notes: string
-}
-
-export interface PerformanceReview {
-  id: string
-  employeeId: string
-  reviewerId: string
-  period: string
-  overall: number
-  goalsAchieved: number
-  strengths: string
-  improvements: string
-  managerComments: string
-  employeeComments: string
-  createdAt: string
-}
-
-export interface Goal {
-  id: string
-  employeeId: string
-  title: string
-  kpi: string
-  progress: number
-  dueDate: string
-}
-
-export interface TrainingProgram {
-  id: string
-  title: string
-  description: string
-  trainer: string
-  date: string
-  duration: string
-  location: string
-  status: TrainingStatus
-}
-
-export interface TrainingAssignment {
-  id: string
-  trainingId: string
-  employeeId: string
-  progress: number
-  completed: boolean
-  certificate: boolean
-}
-
-export interface HRDocument {
-  id: string
-  name: string
-  category: DocumentCategory
-  ownerId: string | null
-  visibility: 'all' | 'employee' | 'hr'
-  uploadedAt: string
-  size: string
-  content: string
-}
-
-export interface Announcement {
-  id: string
-  title: string
-  body: string
-  authorId: string
-  category: AnnouncementCategory
-  date: string
-  pinned: boolean
-}
-
-export interface WorkTask {
-  id: string
-  title: string
-  description: string
-  assigneeId: string
-  assignerId: string
-  dueDate: string
-  status: TaskStatus
-  priority: TaskPriority
-}
-
 export interface AppNotification {
   id: string
   userId: string
@@ -277,17 +129,6 @@ export interface AppState {
   attendance: AttendanceRecord[]
   leaveBalances: LeaveBalance[]
   leaveRequests: LeaveRequest[]
-  payrolls: PayrollRecord[]
-  vacancies: Vacancy[]
-  applications: Application[]
-  interviews: Interview[]
-  reviews: PerformanceReview[]
-  goals: Goal[]
-  trainings: TrainingProgram[]
-  trainingAssignments: TrainingAssignment[]
-  documents: HRDocument[]
-  announcements: Announcement[]
-  tasks: WorkTask[]
   notifications: AppNotification[]
   activities: Activity[]
   settings: OrgSettings

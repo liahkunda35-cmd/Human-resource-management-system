@@ -9,29 +9,18 @@ import {
   uid,
 } from '../lib/format'
 import type {
-  Announcement,
   AppState,
-  Application,
   AttendanceRecord,
   Department,
   Employee,
-  Goal,
-  HRDocument,
-  Interview,
   LeaveRequest,
   LeaveType,
   OrgSettings,
-  PayrollRecord,
-  PerformanceReview,
-  PipelineStage,
   RequestStatus,
-  TrainingProgram,
-  Vacancy,
-  WorkTask,
 } from '../types'
 import { fullName } from '../types'
 
-const STATE_KEY = 'zamtech-hrms-v1'
+const STATE_KEY = 'zamtech-hrms-v2'
 const SESSION_KEY = 'zamtech-hrms-session'
 const REMEMBER_KEY = 'zamtech-hrms-remember'
 
@@ -81,28 +70,6 @@ interface StoreValue {
   clockOut: (employeeId: string) => void
   applyLeave: (payload: { employeeId: string; type: LeaveType; startDate: string; endDate: string; reason: string }) => string | null
   reviewLeave: (id: string, status: Exclude<RequestStatus, 'Pending'>, reviewerId: string, note: string) => void
-  createPayrollRun: (period: string) => void
-  processPayroll: (period: string) => void
-  savePayroll: (id: string, patch: Partial<PayrollRecord>) => void
-  addVacancy: (data: Omit<Vacancy, 'id' | 'createdAt'>) => void
-  saveVacancy: (id: string, patch: Partial<Vacancy>) => void
-  deleteVacancy: (id: string) => void
-  addApplication: (data: Omit<Application, 'id' | 'appliedAt'>) => void
-  moveApplication: (id: string, stage: PipelineStage) => void
-  scheduleInterview: (data: Omit<Interview, 'id'>) => void
-  addReview: (data: Omit<PerformanceReview, 'id' | 'createdAt'>) => void
-  addGoal: (data: Omit<Goal, 'id'>) => void
-  updateGoal: (id: string, patch: Partial<Goal>) => void
-  addTraining: (data: Omit<TrainingProgram, 'id'>) => void
-  assignTraining: (trainingId: string, employeeId: string) => void
-  updateTrainingProgress: (id: string, progress: number) => void
-  addDocument: (data: Omit<HRDocument, 'id' | 'uploadedAt'>) => void
-  deleteDocument: (id: string) => void
-  addAnnouncement: (data: Omit<Announcement, 'id' | 'date' | 'authorId'>, authorId: string) => void
-  deleteAnnouncement: (id: string) => void
-  addTask: (data: Omit<WorkTask, 'id'>) => void
-  updateTask: (id: string, patch: Partial<WorkTask>) => void
-  deleteTask: (id: string) => void
   markNotificationRead: (id: string) => void
   markAllRead: (userId: string) => void
 }
@@ -427,226 +394,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toast(status === 'Approved' ? 'Leave request approved.' : 'Leave request rejected.')
   }, [notify, state.leaveRequests, toast])
 
-  const createPayrollRun = useCallback((period: string) => {
-    if (!period) {
-      toast('Select a payroll period.', 'error')
-      return
-    }
-    const exists = state.payrolls.some((p) => p.period === period)
-    if (exists) {
-      toast('A payroll run already exists for that period.', 'error')
-      return
-    }
-    setState((s) => {
-      const payrolls = s.employees
-        .filter((e) => e.status !== 'Inactive')
-        .map((e) => {
-          const deductions = Math.round(e.basicSalary * 0.02)
-          const allowances = e.housingAllowance + e.transportAllowance + e.otherAllowance
-          const tax = Math.round((e.basicSalary + allowances) * e.taxRate)
-          return {
-            id: uid('pay'),
-            employeeId: e.id,
-            period,
-            basicSalary: e.basicSalary,
-            housing: e.housingAllowance,
-            transport: e.transportAllowance,
-            other: e.otherAllowance,
-            deductions,
-            tax,
-            net: e.basicSalary + allowances - deductions - tax,
-            status: 'Draft' as const,
-            processedAt: null,
-          }
-        })
-      return { ...s, payrolls: [...payrolls, ...s.payrolls] }
-    })
-    toast('Payroll created successfully.')
-  }, [state.payrolls, toast])
-
-  const processPayroll = useCallback((period: string) => {
-    const rows = state.payrolls.filter((p) => p.period === period)
-    if (!rows.length) {
-      toast('Create a payroll run before processing.', 'error')
-      return
-    }
-    setState((s) => ({
-      ...s,
-      payrolls: s.payrolls.map((p) =>
-        p.period === period ? { ...p, status: 'Paid' as const, processedAt: new Date().toISOString() } : p,
-      ),
-    }))
-    state.employees.forEach((e) => {
-      if (e.status !== 'Inactive') {
-        notify(e.id, 'Payslip available', `Your payslip for ${period} is ready.`, 'payroll')
-      }
-    })
-    activity('Payroll processed', 'payroll')
-    toast('Payroll processed successfully.')
-  }, [activity, notify, state.employees, state.payrolls, toast])
-
-  const savePayroll = useCallback((id: string, patch: Partial<PayrollRecord>) => {
-    setState((s) => ({
-      ...s,
-      payrolls: s.payrolls.map((p) => {
-        if (p.id !== id) return p
-        const next = { ...p, ...patch }
-        const allowances = next.housing + next.transport + next.other
-        next.net = next.basicSalary + allowances - next.deductions - next.tax
-        return next
-      }),
-    }))
-    toast('Payslip updated.')
-  }, [toast])
-
-  const addVacancy = useCallback((data: Omit<Vacancy, 'id' | 'createdAt'>) => {
-    setState((s) => ({
-      ...s,
-      vacancies: [{ ...data, id: uid('v'), createdAt: todayISO() }, ...s.vacancies],
-    }))
-    toast('Vacancy published.')
-  }, [toast])
-
-  const saveVacancy = useCallback((id: string, patch: Partial<Vacancy>) => {
-    setState((s) => ({
-      ...s,
-      vacancies: s.vacancies.map((v) => (v.id === id ? { ...v, ...patch } : v)),
-    }))
-    toast('Vacancy updated.')
-  }, [toast])
-
-  const deleteVacancy = useCallback((id: string) => {
-    setState((s) => ({
-      ...s,
-      vacancies: s.vacancies.filter((v) => v.id !== id),
-      applications: s.applications.filter((a) => a.vacancyId !== id),
-    }))
-    toast('Vacancy removed.')
-  }, [toast])
-
-  const addApplication = useCallback((data: Omit<Application, 'id' | 'appliedAt'>) => {
-    setState((s) => ({
-      ...s,
-      applications: [{ ...data, id: uid('ap'), appliedAt: todayISO() }, ...s.applications],
-    }))
-    state.employees.filter((e) => e.role === 'admin').forEach((e) => {
-      notify(e.id, 'New application', `${data.candidateName} applied.`, 'recruitment')
-    })
-    toast('Application recorded.')
-  }, [notify, state.employees, toast])
-
-  const moveApplication = useCallback((id: string, stage: PipelineStage) => {
-    setState((s) => ({
-      ...s,
-      applications: s.applications.map((a) => (a.id === id ? { ...a, stage } : a)),
-    }))
-    toast(`Moved to ${stage}.`)
-  }, [toast])
-
-  const scheduleInterview = useCallback((data: Omit<Interview, 'id'>) => {
-    setState((s) => ({
-      ...s,
-      interviews: [...s.interviews, { ...data, id: uid('i') }],
-      applications: s.applications.map((a) => (a.id === data.applicationId ? { ...a, stage: 'Interview' as const } : a)),
-    }))
-    toast('Interview scheduled.')
-  }, [toast])
-
-  const addReview = useCallback((data: Omit<PerformanceReview, 'id' | 'createdAt'>) => {
-    setState((s) => ({
-      ...s,
-      reviews: [{ ...data, id: uid('r'), createdAt: todayISO() }, ...s.reviews],
-    }))
-    notify(data.employeeId, 'Performance review completed', `A review for ${data.period} is ready.`, 'performance')
-    activity('Performance review completed', 'performance')
-    toast('Review saved.')
-  }, [activity, notify, toast])
-
-  const addGoal = useCallback((data: Omit<Goal, 'id'>) => {
-    setState((s) => ({ ...s, goals: [...s.goals, { ...data, id: uid('g') }] }))
-    toast('Goal added.')
-  }, [toast])
-
-  const updateGoal = useCallback((id: string, patch: Partial<Goal>) => {
-    setState((s) => ({ ...s, goals: s.goals.map((g) => (g.id === id ? { ...g, ...patch } : g)) }))
-  }, [])
-
-  const addTraining = useCallback((data: Omit<TrainingProgram, 'id'>) => {
-    setState((s) => ({ ...s, trainings: [{ ...data, id: uid('t') }, ...s.trainings] }))
-    toast('Training programme created.')
-  }, [toast])
-
-  const assignTraining = useCallback((trainingId: string, employeeId: string) => {
-    setState((s) => {
-      if (s.trainingAssignments.some((a) => a.trainingId === trainingId && a.employeeId === employeeId)) return s
-      return {
-        ...s,
-        trainingAssignments: [
-          ...s.trainingAssignments,
-          { id: uid('ta'), trainingId, employeeId, progress: 0, completed: false, certificate: false },
-        ],
-      }
-    })
-    notify(employeeId, 'Training assigned', 'A new programme has been added to your learning plan.', 'training')
-    toast('Employee assigned.')
-  }, [notify, toast])
-
-  const updateTrainingProgress = useCallback((id: string, progress: number) => {
-    setState((s) => ({
-      ...s,
-      trainingAssignments: s.trainingAssignments.map((a) =>
-        a.id === id
-          ? { ...a, progress, completed: progress >= 100, certificate: progress >= 100 }
-          : a,
-      ),
-    }))
-  }, [])
-
-  const addDocument = useCallback((data: Omit<HRDocument, 'id' | 'uploadedAt'>) => {
-    setState((s) => ({
-      ...s,
-      documents: [{ ...data, id: uid('doc'), uploadedAt: todayISO() }, ...s.documents],
-    }))
-    toast('Document uploaded.')
-  }, [toast])
-
-  const deleteDocument = useCallback((id: string) => {
-    setState((s) => ({ ...s, documents: s.documents.filter((d) => d.id !== id) }))
-    toast('Document removed.')
-  }, [toast])
-
-  const addAnnouncement = useCallback((data: Omit<Announcement, 'id' | 'date' | 'authorId'>, authorId: string) => {
-    setState((s) => ({
-      ...s,
-      announcements: [{ ...data, id: uid('an'), date: todayISO(), authorId }, ...s.announcements],
-    }))
-    state.employees.forEach((e) => {
-      if (e.id !== authorId && e.status !== 'Inactive') {
-        notify(e.id, 'New announcement', data.title, 'announcement')
-      }
-    })
-    toast('Announcement published.')
-  }, [notify, state.employees, toast])
-
-  const deleteAnnouncement = useCallback((id: string) => {
-    setState((s) => ({ ...s, announcements: s.announcements.filter((a) => a.id !== id) }))
-    toast('Announcement removed.')
-  }, [toast])
-
-  const addTask = useCallback((data: Omit<WorkTask, 'id'>) => {
-    setState((s) => ({ ...s, tasks: [{ ...data, id: uid('tk') }, ...s.tasks] }))
-    notify(data.assigneeId, 'Task assigned', data.title, 'task')
-    toast('Task assigned.')
-  }, [notify, toast])
-
-  const updateTask = useCallback((id: string, patch: Partial<WorkTask>) => {
-    setState((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)) }))
-  }, [])
-
-  const deleteTask = useCallback((id: string) => {
-    setState((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id) }))
-  }, [])
-
   const markNotificationRead = useCallback((id: string) => {
     setState((s) => ({
       ...s,
@@ -686,28 +433,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     clockOut,
     applyLeave,
     reviewLeave,
-    createPayrollRun,
-    processPayroll,
-    savePayroll,
-    addVacancy,
-    saveVacancy,
-    deleteVacancy,
-    addApplication,
-    moveApplication,
-    scheduleInterview,
-    addReview,
-    addGoal,
-    updateGoal,
-    addTraining,
-    assignTraining,
-    updateTrainingProgress,
-    addDocument,
-    deleteDocument,
-    addAnnouncement,
-    deleteAnnouncement,
-    addTask,
-    updateTask,
-    deleteTask,
     markNotificationRead,
     markAllRead,
   }

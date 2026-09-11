@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { Eye, EyeOff } from 'lucide-react'
-import { Button, Logo } from '../components/ui'
-import { DEMO_ACCOUNTS } from '../data/seed'
+import { ArrowRight, Eye, EyeOff, Lock, User } from 'lucide-react'
 import { useStore } from '../store/Store'
 
 export function LoginPage() {
@@ -27,77 +25,95 @@ export function LoginPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-visual">
-        <Logo light />
-        <div>
-          <div className="kicker" style={{ color: '#c4a574' }}>Aurelia People</div>
-          <h2>Sign in to the workspace that holds your organisation together.</h2>
-          <p style={{ color: '#cbbba4', maxWidth: 420 }}>
-            Attendance, leave, payroll, and talent — composed with the same care you give your people.
-          </p>
-        </div>
-        <div style={{ color: '#8a8278', fontSize: 13 }}>Trusted by teams who prefer calm over clutter.</div>
-      </div>
-      <div className="auth-form">
+    <div className="auth-shell">
+      <div className="auth-panel">
+        <aside className="auth-welcome">
+          <div className="auth-orb auth-orb-1" aria-hidden />
+          <div className="auth-orb auth-orb-2" aria-hidden />
+          <div className="auth-orb auth-orb-3" aria-hidden />
+          <div className="auth-welcome-copy">
+            <p className="auth-kicker">Aurelia People</p>
+            <h1>WELCOME</h1>
+            <h2>ZamTech Solutions Ltd</h2>
+            <p>
+              Sign in to manage employees, attendance, leave, and reports —
+              all in one calm workspace.
+            </p>
+          </div>
+        </aside>
+
         <form
-          className="auth-card"
+          className="auth-side"
           onSubmit={(e) => {
             e.preventDefault()
             submit()
           }}
         >
-          <Logo />
-          <h1>Welcome back</h1>
-          <p className="lede">Use your work email to continue.</p>
-          <div className="field" style={{ marginTop: 22 }}>
-            <label htmlFor="email">Email</label>
-            <input id="email" className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <div className="auth-side-badge" aria-hidden>
+            <span>A</span>
           </div>
-          <div className="field" style={{ marginTop: 12 }}>
-            <label htmlFor="password">Password</label>
-            <div className="input-wrap">
+          <p className="auth-side-kicker">Secure access</p>
+          <h3>Sign in</h3>
+          <p className="auth-lede">Enter your work credentials to open Aurelia People.</p>
+
+          <div className="auth-fields">
+            <label className="auth-label" htmlFor="login-email">Email</label>
+            <div className="auth-field">
+              <span className="auth-field-icon"><User size={16} aria-hidden /></span>
               <input
-                id="password"
-                className="input"
+                id="login-email"
+                type="email"
+                autoComplete="username"
+                placeholder="name@zamtech.co.zm"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+
+            <label className="auth-label" htmlFor="login-password">Password</label>
+            <div className="auth-field">
+              <span className="auth-field-icon"><Lock size={16} aria-hidden /></span>
+              <input
+                id="login-password"
                 type={show ? 'text' : 'password'}
                 autoComplete="current-password"
+                placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-              <button type="button" className="eye" onClick={() => setShow((v) => !v)} aria-label={show ? 'Hide password' : 'Show password'}>
+              <button
+                type="button"
+                className="auth-show"
+                onClick={() => setShow((v) => !v)}
+                aria-label={show ? 'Hide password' : 'Show password'}
+              >
                 {show ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', margin: '12px 0 18px' }}>
+
+          <div className="auth-meta">
             <label className="check">
-              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+              />
               Remember me
             </label>
-            <Link to="/forgot-password" style={{ fontSize: 14, color: 'var(--gold-deep)' }}>Forgot password</Link>
+            <Link to="/forgot-password" className="auth-link">Forgot password?</Link>
           </div>
-          {error ? <div className="field-error" style={{ marginBottom: 10 }}>{error}</div> : null}
-          <Button type="submit" variant="gold" style={{ width: '100%' }}>Sign in</Button>
-          <div className="demo-accounts">
-            <div className="kicker">Demo access</div>
-            {DEMO_ACCOUNTS.map((a) => (
-              <button
-                key={a.email}
-                type="button"
-                className="demo-btn"
-                onClick={() => {
-                  setEmail(a.email)
-                  setPassword(a.password)
-                  setError('')
-                }}
-              >
-                <strong>{a.label}</strong>
-                <div>{a.email}</div>
-              </button>
-            ))}
-          </div>
+
+          {error ? <div className="field-error">{error}</div> : null}
+
+          <button type="submit" className="auth-primary">
+            Sign in
+            <ArrowRight size={18} aria-hidden />
+          </button>
+
+          <p className="auth-side-note">Protected workspace for ZamTech staff only.</p>
         </form>
       </div>
     </div>
@@ -111,18 +127,25 @@ export function ForgotPasswordPage() {
   const [error, setError] = useState('')
 
   return (
-    <div className="auth-page">
-      <div className="auth-visual">
-        <Logo light />
-        <h2>We will send a reset link to your work email.</h2>
-        <div />
-      </div>
-      <div className="auth-form">
+    <div className="auth-shell">
+      <div className="auth-panel auth-panel--narrow">
+        <aside className="auth-welcome">
+          <div className="auth-orb auth-orb-1" aria-hidden />
+          <div className="auth-orb auth-orb-2" aria-hidden />
+          <div className="auth-welcome-copy">
+            <p className="auth-kicker">Aurelia People</p>
+            <h1>RESET</h1>
+            <h2>Password recovery</h2>
+            <p>We will send a reset link to your work email on file.</p>
+          </div>
+        </aside>
         <form
-          className="auth-card"
+          className="auth-side"
           onSubmit={(e) => {
             e.preventDefault()
-            const exists = state.employees.some((x) => x.email.toLowerCase() === email.trim().toLowerCase())
+            const exists = state.employees.some(
+              (x) => x.email.toLowerCase() === email.trim().toLowerCase(),
+            )
             if (!exists) {
               setError('We could not find that email.')
               return
@@ -131,21 +154,32 @@ export function ForgotPasswordPage() {
             toast('Reset instructions sent (demo).')
           }}
         >
-          <h1>Forgot password</h1>
+          <h3>Forgot password</h3>
           {sent ? (
-              <p className="lede">If this were production, a reset email would be on its way. For the demo, sign in with the published sample password.</p>
+            <p className="auth-lede">
+              If this were production, a reset email would be on its way. For the demo,
+              sign in with the published sample password.
+            </p>
           ) : (
             <>
-              <p className="lede">Enter the email on your ZamTech profile.</p>
-              <div className="field" style={{ marginTop: 18 }}>
-                <label htmlFor="fe">Email</label>
-                <input id="fe" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </div>
+              <p className="auth-lede">Enter the email on your ZamTech profile.</p>
+              <label className="auth-field">
+                <User size={16} aria-hidden />
+                <input
+                  type="email"
+                  placeholder="User Name"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </label>
               {error ? <div className="field-error">{error}</div> : null}
-              <Button type="submit" variant="gold" style={{ width: '100%', marginTop: 16 }}>Send reset link</Button>
+              <button type="submit" className="auth-primary">Send reset link</button>
             </>
           )}
-          <p style={{ marginTop: 16 }}><Link to="/login">Back to sign in</Link></p>
+          <p className="auth-footer">
+            <Link to="/login" className="auth-link">Back to sign in</Link>
+          </p>
         </form>
       </div>
     </div>

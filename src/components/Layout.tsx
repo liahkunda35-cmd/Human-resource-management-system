@@ -1,64 +1,54 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link, Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell,
-  BookOpen,
-  Briefcase,
   Building2,
   CalendarCheck,
+  ChevronDown,
   ClipboardList,
-  FileText,
   LayoutDashboard,
   LogOut,
-  Megaphone,
   Menu,
   Search,
-  Settings,
-  Target,
   Users,
-  Wallet,
   BarChart3,
   X,
 } from 'lucide-react'
 import { useStore } from '../store/Store'
-import { Avatar, Button } from './ui'
+import { Avatar } from './ui'
 import { fullName } from '../types'
 import { relativeTime } from '../lib/format'
 import type { Role } from '../types'
 
-const NAV: { to: string; label: string; icon: typeof Users; roles: Role[] }[] = [
-  { to: '/app', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'manager', 'employee'] },
-  { to: '/app/employees', label: 'Employees', icon: Users, roles: ['admin', 'manager'] },
-  { to: '/app/departments', label: 'Departments', icon: Building2, roles: ['admin'] },
-  { to: '/app/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'manager', 'employee'] },
-  { to: '/app/leave', label: 'Leave', icon: ClipboardList, roles: ['admin', 'manager', 'employee'] },
-  { to: '/app/payroll', label: 'Payroll', icon: Wallet, roles: ['admin', 'employee'] },
-  { to: '/app/recruitment', label: 'Recruitment', icon: Briefcase, roles: ['admin'] },
-  { to: '/app/performance', label: 'Performance', icon: Target, roles: ['admin', 'manager', 'employee'] },
-  { to: '/app/training', label: 'Training', icon: BookOpen, roles: ['admin', 'manager', 'employee'] },
-  { to: '/app/documents', label: 'Documents', icon: FileText, roles: ['admin', 'manager', 'employee'] },
-  { to: '/app/announcements', label: 'Announcements', icon: Megaphone, roles: ['admin', 'manager', 'employee'] },
-  { to: '/app/tasks', label: 'Tasks', icon: ClipboardList, roles: ['admin', 'manager', 'employee'] },
-  { to: '/app/reports', label: 'Reports', icon: BarChart3, roles: ['admin', 'manager'] },
-  { to: '/app/settings', label: 'Settings', icon: Settings, roles: ['admin', 'manager', 'employee'] },
+const NAV: {
+  to: string
+  label: string
+  icon: typeof Users
+  roles: Role[]
+  group: 'Overview' | 'People' | 'Time' | 'Insight'
+}[] = [
+  { to: '/app', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'manager', 'employee'], group: 'Overview' },
+  { to: '/app/employees', label: 'Employees', icon: Users, roles: ['admin', 'manager'], group: 'People' },
+  { to: '/app/departments', label: 'Departments', icon: Building2, roles: ['admin'], group: 'People' },
+  { to: '/app/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'manager', 'employee'], group: 'Time' },
+  { to: '/app/leave', label: 'Leave', icon: ClipboardList, roles: ['admin', 'manager', 'employee'], group: 'Time' },
+  { to: '/app/reports', label: 'Reports', icon: BarChart3, roles: ['admin', 'manager'], group: 'Insight' },
 ]
+
+const NAV_GROUPS = ['Overview', 'People', 'Time', 'Insight'] as const
+
+function roleLabel(role: Role) {
+  if (role === 'admin') return 'HR Admin'
+  if (role === 'manager') return 'Manager'
+  return 'Employee'
+}
 
 function notificationPath(type: string): string {
   switch (type) {
     case 'leave':
       return '/app/leave'
-    case 'payroll':
-      return '/app/payroll'
-    case 'recruitment':
-      return '/app/recruitment'
-    case 'announcement':
-      return '/app/announcements'
-    case 'training':
-      return '/app/training'
-    case 'performance':
-      return '/app/performance'
-    case 'task':
-      return '/app/tasks'
+    case 'attendance':
+      return '/app/attendance'
     case 'employee':
       return '/app/employees'
     default:
@@ -69,13 +59,29 @@ function notificationPath(type: string): string {
 export function AppLayout() {
   const { currentUser, state, logout, markNotificationRead, markAllRead } = useStore()
   const navigate = useNavigate()
+  const location = useLocation()
   const [open, setOpen] = useState(false)
   const [notes, setNotes] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [q, setQ] = useState('')
 
   const items = NAV.filter((n) => currentUser && n.roles.includes(currentUser.role))
+  const grouped = NAV_GROUPS
+    .map((group) => ({ group, items: items.filter((n) => n.group === group) }))
+    .filter((g) => g.items.length > 0)
   const myNotes = state.notifications.filter((n) => n.userId === currentUser?.id).slice(0, 8)
   const unread = myNotes.filter((n) => !n.read).length
+
+  const activeNav = useMemo(() => {
+    const exact = items.find((n) => n.to === location.pathname)
+    if (exact) return exact
+    return [...items]
+      .filter((n) => n.to !== '/app' && location.pathname.startsWith(n.to))
+      .sort((a, b) => b.to.length - a.to.length)[0] ?? items.find((n) => n.to === '/app')
+  }, [items, location.pathname])
+
+  const TitleIcon = activeNav?.icon ?? LayoutDashboard
+  const pageTitle = activeNav?.label ?? 'Dashboard'
 
   const searchHits = useMemo(() => {
     if (q.trim().length < 2) return []
@@ -95,7 +101,8 @@ export function AppLayout() {
     <div className="shell">
       {open ? <div className="sidebar-backdrop" onClick={() => setOpen(false)} /> : null}
       <aside className={`sidebar ${open ? 'open' : ''}`}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="sidebar-glow" aria-hidden />
+        <div className="sidebar-head">
           <Link to="/app" className="brand" onClick={() => setOpen(false)}>
             <div className="brand-mark">A</div>
             <div>
@@ -107,39 +114,37 @@ export function AppLayout() {
             <X size={16} />
           </button>
         </div>
+
         <nav className="nav">
-          {items.map((item) => {
-            const Icon = item.icon
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === '/app'}
-                onClick={() => setOpen(false)}
-              >
-                <Icon size={16} />
-                {item.label}
-              </NavLink>
-            )
-          })}
-        </nav>
-        <div className="sidebar-foot">
-          <Link to="/app/settings" className="user-chip" onClick={() => setOpen(false)}>
-            <Avatar employee={currentUser} />
-            <div className="truncate">
-              <strong>{fullName(currentUser)}</strong>
-              <small>{currentUser.position}</small>
+          {grouped.map(({ group, items: links }) => (
+            <div key={group} className="nav-group">
+              <div className="nav-group-label">{group}</div>
+              {links.map((item) => {
+                const Icon = item.icon
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === '/app'}
+                    onClick={() => setOpen(false)}
+                  >
+                    <span className="nav-ico"><Icon size={16} /></span>
+                    <span className="nav-label">{item.label}</span>
+                  </NavLink>
+                )
+              })}
             </div>
-          </Link>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              logout()
-              navigate('/')
-            }}
-          >
-            <LogOut size={16} /> Sign out
-          </Button>
+          ))}
+        </nav>
+
+        <div className="sidebar-foot">
+          <div className="sidebar-user">
+            <Avatar employee={currentUser} size="sm" />
+            <div className="sidebar-user-meta">
+              <strong>{fullName(currentUser)}</strong>
+              <small>{roleLabel(currentUser.role)}</small>
+            </div>
+          </div>
         </div>
       </aside>
       <div className="main">
@@ -147,10 +152,17 @@ export function AppLayout() {
           <button className="btn-icon menu-btn" onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu size={18} />
           </button>
+          <div className="topbar-title">
+            <span className="topbar-title-icon"><TitleIcon size={18} /></span>
+            <div className="topbar-title-text">
+              <span>{pageTitle}</span>
+              <small>{state.settings.companyName}</small>
+            </div>
+          </div>
           <div className="search">
             <Search size={16} />
             <input
-              placeholder="Search people, records…"
+              placeholder="Search people…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
@@ -172,7 +184,14 @@ export function AppLayout() {
           </div>
           <div className="top-actions">
             <div className="bell">
-              <button className="btn-icon" aria-label="Notifications" onClick={() => setNotes((v) => !v)}>
+              <button
+                className="btn-icon topbar-action"
+                aria-label="Notifications"
+                onClick={() => {
+                  setNotes((v) => !v)
+                  setProfileOpen(false)
+                }}
+              >
                 <Bell size={18} />
                 {unread > 0 ? <span className="dot" /> : null}
               </button>
@@ -208,7 +227,56 @@ export function AppLayout() {
                 </div>
               ) : null}
             </div>
-            <Avatar employee={currentUser} />
+            <div className={`topbar-profile ${profileOpen ? 'open' : ''}`}>
+              <button
+                type="button"
+                className="topbar-user"
+                aria-haspopup="menu"
+                aria-expanded={profileOpen}
+                onClick={() => {
+                  setProfileOpen((v) => !v)
+                  setNotes(false)
+                }}
+              >
+                <Avatar employee={currentUser} />
+                <div className="topbar-user-meta">
+                  <strong>{fullName(currentUser)}</strong>
+                  <small>{currentUser.email}</small>
+                </div>
+                <ChevronDown size={16} className="topbar-user-caret" />
+              </button>
+              {profileOpen ? (
+                <>
+                  <button
+                    type="button"
+                    className="topbar-profile-scrim"
+                    aria-label="Close profile menu"
+                    onClick={() => setProfileOpen(false)}
+                  />
+                  <div className="topbar-profile-menu" role="menu">
+                    <div className="topbar-profile-head">
+                      <Avatar employee={currentUser} />
+                      <div>
+                        <strong>{fullName(currentUser)}</strong>
+                        <small>{currentUser.position}</small>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="danger"
+                      onClick={() => {
+                        setProfileOpen(false)
+                        logout()
+                        navigate('/')
+                      }}
+                    >
+                      <LogOut size={16} /> Sign out
+                    </button>
+                  </div>
+                </>
+              ) : null}
+            </div>
           </div>
         </header>
         <div className="page">

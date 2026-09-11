@@ -1,15 +1,19 @@
 import {
+  Children,
+  isValidElement,
   useEffect,
   useId,
+  useMemo,
   useState,
   type ButtonHTMLAttributes,
   type FormEvent,
   type InputHTMLAttributes,
+  type ReactElement,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react'
-import { X } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import type { Employee } from '../types'
 import { initials } from '../lib/format'
 import { useStore } from '../store/Store'
@@ -172,6 +176,170 @@ export function EmptyState({ title, body, action }: { title: string; body: strin
       <h3>{title}</h3>
       <p>{body}</p>
       {action}
+    </div>
+  )
+}
+
+export type RowAction = {
+  label: string
+  onClick: () => void
+  danger?: boolean
+  hidden?: boolean
+}
+
+export function RowActions({ items }: { items: RowAction[] }) {
+  const [open, setOpen] = useState(false)
+  const visible = items.filter((i) => !i.hidden)
+  if (visible.length === 0) return <span className="muted">—</span>
+
+  return (
+    <div className={`row-actions ${open ? 'open' : ''}`}>
+      <button
+        type="button"
+        className="row-actions-btn"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen((v) => !v)
+        }}
+      >
+        Actions
+        <ChevronDown size={14} />
+      </button>
+      {open ? (
+        <>
+          <button type="button" className="row-actions-scrim" aria-label="Close actions" onClick={() => setOpen(false)} />
+          <div className="row-actions-menu" role="menu">
+            {visible.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                role="menuitem"
+                className={item.danger ? 'danger' : undefined}
+                onClick={() => {
+                  setOpen(false)
+                  item.onClick()
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+  )
+}
+
+export function DataTable({
+  children,
+  empty,
+  emptyTitle = 'Nothing here',
+  emptyBody = 'Try adjusting filters or add a new record.',
+  pageSize: initialPageSize = 5,
+}: {
+  children: ReactNode
+  empty?: boolean
+  emptyTitle?: string
+  emptyBody?: string
+  pageSize?: number
+}) {
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(initialPageSize)
+
+  const { head, rows } = useMemo(() => {
+    const list = Children.toArray(children)
+    let headNode: ReactNode = null
+    let rowNodes: ReactNode[] = []
+    for (const child of list) {
+      if (!isValidElement(child)) continue
+      const tag = typeof child.type === 'string' ? child.type : null
+      if (tag === 'thead') {
+        headNode = child
+      } else if (tag === 'tbody') {
+        rowNodes = Children.toArray((child as ReactElement<{ children?: ReactNode }>).props.children).filter(
+          (row) => row != null,
+        )
+      }
+    }
+    return { head: headNode, rows: rowNodes }
+  }, [children])
+
+  const total = rows.length
+  const pageCount = Math.max(1, Math.ceil(total / pageSize) || 1)
+  const safePage = Math.min(Math.max(0, page), pageCount - 1)
+  const start = safePage * pageSize
+  const pageRows = rows.slice(start, start + pageSize)
+
+  useEffect(() => {
+    setPage(0)
+  }, [total, pageSize])
+
+  useEffect(() => {
+    setPageSize(initialPageSize)
+  }, [initialPageSize])
+
+  if (empty || total === 0) {
+    return (
+      <div className="card data-table-card">
+        <EmptyState title={emptyTitle} body={emptyBody} />
+      </div>
+    )
+  }
+
+  const from = start + 1
+  const to = Math.min(start + pageSize, total)
+
+  return (
+    <div className="card data-table-card">
+      <div className="table-wrap">
+        <table className="data-table">
+          {head}
+          <tbody>{pageRows}</tbody>
+        </table>
+      </div>
+      <div className="table-pager">
+        <span className="table-pager-meta">
+          Showing {from}–{to} of {total}
+        </span>
+        <div className="table-pager-controls">
+          <label className="table-pager-size">
+            <span>Rows</span>
+            <select
+              className="select"
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              aria-label="Rows per page"
+            >
+              {[5, 8, 10, 20].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="table-pager-btn"
+            disabled={safePage <= 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            aria-label="Previous page"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="table-pager-page">
+            {safePage + 1} / {pageCount}
+          </span>
+          <button
+            type="button"
+            className="table-pager-btn"
+            disabled={safePage >= pageCount - 1}
+            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+            aria-label="Next page"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

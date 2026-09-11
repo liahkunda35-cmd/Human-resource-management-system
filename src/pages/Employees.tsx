@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Download, Pencil, Plus, Search, Trash2, Eye } from 'lucide-react'
+import { Download, Plus, Search } from 'lucide-react'
 import { useStore } from '../store/Store'
-import { Avatar, Badge, Button, ConfirmDialog, EmptyState, FormActions, Modal, PageHeader, Tabs, statusTone } from '../components/ui'
-import { deptName, downloadText, formatDate, money, toCSV, todayISO } from '../lib/format'
+import { Avatar, Badge, Button, ConfirmDialog, DataTable, EmptyState, Field, FormActions, Modal, PageHeader, RowActions, Tabs, statusTone } from '../components/ui'
+import { deptName, downloadText, formatDate, toCSV, todayISO } from '../lib/format'
 import type { Employee, EmploymentStatus, EmploymentType, Gender, Role } from '../types'
 import { fullName } from '../types'
 import { AttendanceCalendar } from '../components/ClockWidget'
@@ -184,73 +184,42 @@ export function EmployeesPage() {
           <option value="joined">Sort by joined</option>
         </select>
       </div>
-      <div className="card" style={{ padding: 0 }}>
-        {scoped.length === 0 ? (
-          <EmptyState title="No people match" body="Adjust filters or add a new employee record." />
-        ) : (
-          <>
-            <div className="table-wrap">
-              <table className="data responsive">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Employee</th>
-                    <th>Department</th>
-                    <th>Position</th>
-                    <th>Phone</th>
-                    <th>Email</th>
-                    <th>Status</th>
-                    <th>Joined</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scoped.map((e) => (
-                    <tr key={e.id}>
-                      <td>{e.employeeId}</td>
-                      <td>
-                        <div className="person">
-                          <Avatar employee={e} />
-                          <strong>{fullName(e)}</strong>
-                        </div>
-                      </td>
-                      <td>{deptName(state.departments, e.departmentId)}</td>
-                      <td>{e.position}</td>
-                      <td>{e.phone}</td>
-                      <td>{e.email}</td>
-                      <td><Badge tone={statusTone(e.status)}>{e.status}</Badge></td>
-                      <td>{formatDate(e.dateJoined)}</td>
-                      <td>
-                        <div className="actions">
-                          <button className="btn-icon" aria-label="View" onClick={() => navigate(`/app/employees/${e.id}`)}><Eye size={14} /></button>
-                          {canEdit ? <button className="btn-icon" aria-label="Edit" onClick={() => openEdit(e)}><Pencil size={14} /></button> : null}
-                          {canEdit ? <button className="btn-icon" aria-label="Deactivate" onClick={() => setKill(e.id)}><Trash2 size={14} /></button> : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mobile-cards" style={{ padding: 12 }}>
-              {scoped.map((e) => (
-                <div key={e.id} className="m-card">
-                  <div className="person">
-                    <Avatar employee={e} />
-                    <div>
-                      <strong>{fullName(e)}</strong>
-                      <span>{e.position} · {e.employeeId}</span>
-                    </div>
-                    <Badge tone={statusTone(e.status)}>{e.status}</Badge>
+      <DataTable empty={scoped.length === 0} emptyTitle="No people match" emptyBody="Adjust filters or add a new employee record.">
+        <thead>
+          <tr>
+            <th>Employee</th>
+            <th>Department</th>
+            <th>Position</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {scoped.map((e) => (
+            <tr key={e.id}>
+              <td>
+                <div className="person">
+                  <Avatar employee={e} size="sm" />
+                  <div>
+                    <strong style={{ color: 'var(--ink)' }}>{fullName(e)}</strong>
+                    <div className="muted" style={{ fontSize: 12 }}>{e.employeeId}</div>
                   </div>
-                  <p className="lede">{deptName(state.departments, e.departmentId)} · {e.email}</p>
-                  <Link to={`/app/employees/${e.id}`}>Open profile</Link>
                 </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+              </td>
+              <td>{deptName(state.departments, e.departmentId)}</td>
+              <td>{e.position}</td>
+              <td><Badge tone={statusTone(e.status)}>{e.status}</Badge></td>
+              <td>
+                <RowActions items={[
+                  { label: 'View', onClick: () => navigate(`/app/employees/${e.id}`) },
+                  { label: 'Edit', hidden: !canEdit, onClick: () => openEdit(e) },
+                  { label: 'Deactivate', danger: true, hidden: !canEdit, onClick: () => setKill(e.id) },
+                ]} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </DataTable>
       <Modal open={open} title={editId ? 'Edit employee' : 'Add employee'} onClose={() => setOpen(false)} wide>
         <form onSubmit={(e) => { e.preventDefault(); save() }}>
         <div className="row">
@@ -319,16 +288,6 @@ export function EmployeesPage() {
   )
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
-  return (
-    <div className="field">
-      <label>{label}</label>
-      {children}
-      {error ? <div className="field-error">{error}</div> : null}
-    </div>
-  )
-}
-
 export function EmployeeProfilePage() {
   const { id } = useParams()
   const { state, currentUser } = useStore()
@@ -341,10 +300,6 @@ export function EmployeeProfilePage() {
   const manager = state.employees.find((e) => e.id === emp.managerId)
   const att = state.attendance.filter((a) => a.employeeId === emp.id).slice(0, 12)
   const leave = state.leaveRequests.filter((l) => l.employeeId === emp.id)
-  const pay = state.payrolls.filter((p) => p.employeeId === emp.id)
-  const perf = state.reviews.filter((r) => r.employeeId === emp.id)
-  const docs = state.documents.filter((d) => d.ownerId === emp.id || d.visibility === 'all')
-  const train = state.trainingAssignments.filter((t) => t.employeeId === emp.id)
 
   return (
     <>
@@ -357,7 +312,7 @@ export function EmployeeProfilePage() {
           <p className="lede">{emp.phone} · Joined {formatDate(emp.dateJoined)}</p>
         </div>
       </div>
-      <Tabs tabs={['Personal', 'Employment', 'Attendance', 'Leave', 'Payroll', 'Performance', 'Documents', 'Training']} value={tab} onChange={setTab} />
+      <Tabs tabs={['Personal', 'Employment', 'Attendance', 'Leave']} value={tab} onChange={setTab} />
       {tab === 'Personal' && (
         <div className="card">
           <dl className="dl">
@@ -381,70 +336,53 @@ export function EmployeeProfilePage() {
             <dt>Date joined</dt><dd>{formatDate(emp.dateJoined)}</dd>
             <dt>Manager</dt><dd>{manager ? fullName(manager) : '—'}</dd>
             <dt>Status</dt><dd>{emp.status}</dd>
-            <dt>Basic salary</dt><dd>{money(emp.basicSalary)}</dd>
           </dl>
         </div>
       )}
       {tab === 'Attendance' && (
-        <div className="grid g-2">
+        <>
           <div className="card"><AttendanceCalendar employeeId={emp.id} /></div>
-          <div className="card">
-            {att.map((a) => (
-              <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0e8dc' }}>
-                <span>{formatDate(a.date)}</span>
-                <span>{a.clockIn ?? '—'} – {a.clockOut ?? '—'}</span>
-                <Badge tone={statusTone(a.status)}>{a.status}</Badge>
-              </div>
-            ))}
-          </div>
-        </div>
+          <DataTable empty={att.length === 0} emptyTitle="No attendance" emptyBody="Clock records will show here.">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>In</th>
+                <th>Out</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {att.map((a) => (
+                <tr key={a.id}>
+                  <td>{formatDate(a.date)}</td>
+                  <td>{a.clockIn ?? '—'}</td>
+                  <td>{a.clockOut ?? '—'}</td>
+                  <td><Badge tone={statusTone(a.status)}>{a.status}</Badge></td>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
+        </>
       )}
       {tab === 'Leave' && (
-        <div className="card">
-          {leave.map((l) => (
-            <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-              <span>{l.type}</span>
-              <span>{formatDate(l.startDate)} – {formatDate(l.endDate)}</span>
-              <Badge tone={statusTone(l.status)}>{l.status}</Badge>
-            </div>
-          ))}
-        </div>
-      )}
-      {tab === 'Payroll' && (
-        <div className="card">
-          {pay.map((p) => (
-            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-              <span>{p.period}</span>
-              <span>{money(p.net)}</span>
-              <Badge tone={statusTone(p.status)}>{p.status}</Badge>
-            </div>
-          ))}
-        </div>
-      )}
-      {tab === 'Performance' && (
-        <div className="card">
-          {perf.map((r) => (
-            <div key={r.id} style={{ padding: '10px 0', borderBottom: '1px solid #f0e8dc' }}>
-              <strong>{r.period}</strong> · {r.overall}/5
-              <p className="lede">{r.strengths}</p>
-            </div>
-          ))}
-        </div>
-      )}
-      {tab === 'Documents' && (
-        <div className="card">
-          {docs.map((d) => (
-            <div key={d.id} style={{ padding: '8px 0' }}>{d.name} · {d.category}</div>
-          ))}
-        </div>
-      )}
-      {tab === 'Training' && (
-        <div className="card">
-          {train.map((t) => {
-            const p = state.trainings.find((x) => x.id === t.trainingId)
-            return <div key={t.id} style={{ padding: '8px 0' }}>{p?.title} · {t.progress}%</div>
-          })}
-        </div>
+        <DataTable empty={leave.length === 0} emptyTitle="No leave" emptyBody="Leave requests for this person will appear here.">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Dates</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {leave.map((l) => (
+              <tr key={l.id}>
+                <td>{l.type}</td>
+                <td>{formatDate(l.startDate)} – {formatDate(l.endDate)}</td>
+                <td><Badge tone={statusTone(l.status)}>{l.status}</Badge></td>
+              </tr>
+            ))}
+          </tbody>
+        </DataTable>
       )}
     </>
   )
