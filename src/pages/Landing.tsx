@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import {
@@ -14,6 +14,29 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
+
+const footerQuickLinks = [
+  { label: 'Home', href: '#top' },
+  { label: 'About', href: '#about' },
+  { label: 'Features', href: '#features' },
+  { label: 'Services', href: '#solutions' },
+  { label: 'Contact', href: '#contact' },
+]
+
+const footerHrLinks = [
+  { label: 'Employee Management', href: '#solutions' },
+  { label: 'Attendance', href: '#features' },
+  { label: 'Leave Management', href: '#features' },
+  { label: 'Payroll', href: '#solutions' },
+  { label: 'Reports', href: '/login' },
+]
+
+const footerSupportLinks = [
+  { label: 'Help Center', href: '#contact' },
+  { label: 'Contact Support', href: '#contact' },
+  { label: 'Privacy Policy', href: '#contact' },
+  { label: 'Terms & Conditions', href: '#contact' },
+]
 
 const featureCards = [
   {
@@ -187,7 +210,6 @@ function SolutionsGrid({
 }
 
 export function LandingPage() {
-  const [sent, setSent] = useState(false)
   const [narrow, setNarrow] = useState(false)
   const heroRef = useRef<HTMLElement>(null)
   const bgRef = useRef<HTMLDivElement>(null)
@@ -229,11 +251,6 @@ export function LandingPage() {
     }
   }, [])
 
-  function onContact(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSent(true)
-  }
-
   const marqueeCards = [...featureCards, ...featureCards]
 
   return (
@@ -245,8 +262,7 @@ export function LandingPage() {
         </Link>
         <div className="lp-nav-actions">
           <span className="lp-nav-search" aria-hidden><Search size={17} /></span>
-          <Link to="/login" className="lp-btn lp-btn-ghost lp-btn-sm">Login</Link>
-          <Link to="/login" className="lp-btn lp-btn-brown lp-btn-sm">Sign Up</Link>
+          <Link to="/login" className="lp-btn lp-btn-brown lp-btn-sm">Sign In</Link>
         </div>
       </header>
 
@@ -286,7 +302,7 @@ export function LandingPage() {
                 Get Started <ArrowRight size={16} aria-hidden />
               </Link>
               <Link to="/login" className="lp-btn lp-btn-ghost-light">
-                Sign Up
+                Sign In
               </Link>
             </div>
           </div>
@@ -370,49 +386,62 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="lp-contact" id="contact">
-        <div className="lp-contact-grid">
-          <div className="lp-contact-visual">
-            <img src="/contact-team.jpg" alt="Professionals collaborating in the workplace" />
-            <div className="lp-contact-intro">
-              <h2>Schedule your free HR consultation</h2>
-              <p>
-                Tell us about your workforce needs and explore how Aurelia can simplify
-                employee management, attendance, leave, and everyday HR work.
-              </p>
-            </div>
+      <footer className="lp-footer" id="contact">
+        <div className="lp-footer-inner">
+          <div className="lp-footer-brand">
+            <Link to="/" className="lp-logo lp-footer-logo">
+              <span className="lp-logo-mark" aria-hidden><Users size={15} /></span>
+              <span>Aurelia HR</span>
+            </Link>
+            <p className="lp-footer-tagline">
+              Modern HR management made simple.
+              Manage people, payroll, attendance and workforce operations from one platform.
+            </p>
           </div>
 
-          <form className="lp-form" onSubmit={onContact}>
-            {sent ? (
-              <div className="lp-form-done">
-                <CheckCircle2 size={24} />
-                <p>Thank you. Our team will be in touch shortly.</p>
-              </div>
-            ) : (
-              <>
-                <div className="lp-form-row">
-                  <input name="name" className="lp-field" placeholder="Name" required />
-                  <input name="email" type="email" className="lp-field" placeholder="Email" required />
-                </div>
-                <div className="lp-form-row">
-                  <input name="phone" className="lp-field" placeholder="Phone" />
-                  <input name="company" className="lp-field" placeholder="Company" />
-                </div>
-                <textarea name="message" className="lp-field lp-area" rows={4} placeholder="Message" required />
-                <button type="submit" className="lp-btn lp-btn-bronze lp-btn-block">
-                  Send Message <ArrowRight size={16} aria-hidden />
-                </button>
-              </>
-            )}
-          </form>
+          <div className="lp-footer-cols">
+            <div className="lp-footer-col">
+              <h3>Quick Links</h3>
+              <ul>
+                {footerQuickLinks.map((item) => (
+                  <li key={item.label}>
+                    <a href={item.href}>{item.label}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="lp-footer-col">
+              <h3>HR Management</h3>
+              <ul>
+                {footerHrLinks.map((item) => (
+                  <li key={item.label}>
+                    {item.href.startsWith('/') ? (
+                      <Link to={item.href}>{item.label}</Link>
+                    ) : (
+                      <a href={item.href}>{item.label}</a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="lp-footer-col">
+              <h3>Support</h3>
+              <ul>
+                {footerSupportLinks.map((item) => (
+                  <li key={item.label}>
+                    <a href={item.href}>{item.label}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
 
-        <footer className="lp-foot">
-          <span>© {new Date().getFullYear()} Aurelia People · ZamTech Solutions Ltd</span>
-          <Link to="/login">Sign in to your workspace</Link>
-        </footer>
-      </section>
+        <div className="lp-footer-bottom">
+          <p>© {new Date().getFullYear()} HR Management System. All rights reserved.</p>
+          <Link to="/login" className="lp-footer-signin">Sign in to your workspace</Link>
+        </div>
+      </footer>
     </div>
   )
 }

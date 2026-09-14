@@ -2,21 +2,29 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell,
+  Briefcase,
   Building2,
   CalendarCheck,
   ChevronDown,
   ClipboardList,
+  FileText,
+  GraduationCap,
   LayoutDashboard,
   LogOut,
   Menu,
   Search,
+  Settings,
+  Shield,
+  Target,
+  UserCircle,
   Users,
+  Wallet,
   BarChart3,
   X,
 } from 'lucide-react'
 import { useStore } from '../store/Store'
 import { Avatar } from './ui'
-import { fullName } from '../types'
+import { fullName, roleLabel } from '../types'
 import { relativeTime } from '../lib/format'
 import type { Role } from '../types'
 
@@ -25,23 +33,28 @@ const NAV: {
   label: string
   icon: typeof Users
   roles: Role[]
-  group: 'Overview' | 'People' | 'Time' | 'Insight'
+  group: 'Overview' | 'People' | 'Time' | 'Talent' | 'Insight' | 'Admin'
+  badgeKey?: 'internship'
 }[] = [
-  { to: '/app', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'manager', 'employee'], group: 'Overview' },
-  { to: '/app/employees', label: 'Employees', icon: Users, roles: ['admin', 'manager'], group: 'People' },
-  { to: '/app/departments', label: 'Departments', icon: Building2, roles: ['admin'], group: 'People' },
-  { to: '/app/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'manager', 'employee'], group: 'Time' },
-  { to: '/app/leave', label: 'Leave', icon: ClipboardList, roles: ['admin', 'manager', 'employee'], group: 'Time' },
-  { to: '/app/reports', label: 'Reports', icon: BarChart3, roles: ['admin', 'manager'], group: 'Insight' },
+  { to: '/app', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'admin', 'manager', 'employee'], group: 'Overview' },
+  { to: '/app/profile', label: 'My Profile', icon: UserCircle, roles: ['employee'], group: 'Overview' },
+  { to: '/app/employees', label: 'Employee Management', icon: Users, roles: ['super_admin', 'admin', 'manager'], group: 'People' },
+  { to: '/app/departments', label: 'Departments', icon: Building2, roles: ['super_admin', 'admin'], group: 'People' },
+  { to: '/app/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['super_admin', 'admin', 'manager', 'employee'], group: 'Time' },
+  { to: '/app/leave', label: 'Leave Management', icon: ClipboardList, roles: ['super_admin', 'admin', 'manager', 'employee'], group: 'Time' },
+  { to: '/app/payslips', label: 'My Payslips', icon: FileText, roles: ['employee'], group: 'Time' },
+  { to: '/app/payroll', label: 'Payroll', icon: Wallet, roles: ['super_admin', 'admin', 'manager'], group: 'Talent' },
+  { to: '/app/recruitment', label: 'Recruitment', icon: Briefcase, roles: ['super_admin', 'admin', 'manager'], group: 'Talent' },
+  { to: '/app/performance', label: 'Performance', icon: Target, roles: ['super_admin', 'admin', 'manager'], group: 'Talent' },
+  { to: '/app/internships', label: 'Internship Management', icon: GraduationCap, roles: ['super_admin', 'admin', 'manager', 'employee'], group: 'Talent', badgeKey: 'internship' },
+  { to: '/app/reports', label: 'Reports', icon: BarChart3, roles: ['super_admin', 'admin', 'manager'], group: 'Insight' },
+  { to: '/app/notifications', label: 'Notifications', icon: Bell, roles: ['employee'], group: 'Insight' },
+  { to: '/app/admins', label: 'Admin Management', icon: Shield, roles: ['super_admin'], group: 'Admin' },
+  { to: '/app/users', label: 'Employee Accounts', icon: Shield, roles: ['admin'], group: 'Admin' },
+  { to: '/app/settings', label: 'Settings', icon: Settings, roles: ['super_admin', 'admin', 'manager'], group: 'Admin' },
 ]
 
-const NAV_GROUPS = ['Overview', 'People', 'Time', 'Insight'] as const
-
-function roleLabel(role: Role) {
-  if (role === 'admin') return 'HR Admin'
-  if (role === 'manager') return 'Manager'
-  return 'Employee'
-}
+const NAV_GROUPS = ['Overview', 'People', 'Time', 'Talent', 'Insight', 'Admin'] as const
 
 function notificationPath(type: string): string {
   switch (type) {
@@ -51,6 +64,8 @@ function notificationPath(type: string): string {
       return '/app/attendance'
     case 'employee':
       return '/app/employees'
+    case 'internship':
+      return '/app/internships'
     default:
       return '/app'
   }
@@ -71,6 +86,10 @@ export function AppLayout() {
     .filter((g) => g.items.length > 0)
   const myNotes = state.notifications.filter((n) => n.userId === currentUser?.id).slice(0, 8)
   const unread = myNotes.filter((n) => !n.read).length
+  const newInternshipApps =
+    currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'super_admin')
+      ? state.internshipApplications.filter((a) => a.status === 'Pending').length
+      : 0
 
   const activeNav = useMemo(() => {
     const exact = items.find((n) => n.to === location.pathname)
@@ -121,6 +140,8 @@ export function AppLayout() {
               <div className="nav-group-label">{group}</div>
               {links.map((item) => {
                 const Icon = item.icon
+                const badge =
+                  item.badgeKey === 'internship' && newInternshipApps > 0 ? newInternshipApps : 0
                 return (
                   <NavLink
                     key={item.to}
@@ -129,7 +150,16 @@ export function AppLayout() {
                     onClick={() => setOpen(false)}
                   >
                     <span className="nav-ico"><Icon size={16} /></span>
-                    <span className="nav-label">{item.label}</span>
+                    <span className="nav-label">
+                      {item.to === '/app/leave' && currentUser.role === 'employee'
+                        ? 'My Leave'
+                        : item.to === '/app/internships' && currentUser.role === 'employee'
+                          ? 'Internships'
+                          : item.to === '/app/attendance' && currentUser.role === 'employee'
+                            ? 'My Attendance'
+                            : item.label}
+                    </span>
+                    {badge ? <span className="nav-badge" aria-label={`${badge} new`}>{badge}</span> : null}
                   </NavLink>
                 )
               })}
@@ -288,15 +318,25 @@ export function AppLayout() {
 }
 
 export function RequireAuth({ children, roles }: { children?: ReactNode; roles?: Role[] }) {
-  const { currentUser } = useStore()
+  const { currentUser, authLoading } = useStore()
+  if (authLoading) {
+    return (
+      <div className="card empty" style={{ margin: 40 }}>
+        <h3>Loading session…</h3>
+      </div>
+    )
+  }
   if (!currentUser) {
     return <Navigate to="/login" replace />
   }
   if (roles && !roles.includes(currentUser.role)) {
     return (
       <div className="card empty">
-        <h3>This area is reserved</h3>
-        <p>Your role does not include access to this module.</p>
+        <h3>Access Denied</h3>
+        <p>Your role does not include access to this module. You have been kept on an authorised area.</p>
+        <p style={{ marginTop: 12 }}>
+          <Link to="/app">Return to your dashboard</Link>
+        </p>
       </div>
     )
   }

@@ -219,9 +219,10 @@ function ManagerHome() {
     : []
   const today = todayISO()
   const present = team.filter((e) => state.attendance.some((a) => a.employeeId === e.id && a.date === today && ['Present', 'Late', 'Remote'].includes(a.status))).length
-  const pending = currentUser
-    ? state.leaveRequests.filter((l) => l.status === 'Pending' && team.some((t) => t.id === l.employeeId))
-    : []
+  const pending = state.leaveRequests.filter(
+    (l) => l.status === 'Pending' || l.status === 'Requires Review' || l.status === 'Documentation Required',
+  )
+  const newInternApps = state.internshipApplications.filter((a) => a.status === 'Pending').length
 
   if (!currentUser) return null
 
@@ -232,6 +233,12 @@ function ManagerHome() {
         <StatCard icon={<CalendarCheck size={20} />} value={present} label="Present today" />
         <StatCard icon={<ClipboardList size={20} />} value={pending.length} label="Leave to review" />
       </div>
+      {newInternApps > 0 ? (
+        <div className="card" style={{ padding: 16, marginBottom: 16, cursor: 'pointer' }} onClick={() => navigate('/app/internships')}>
+          <strong style={{ color: 'var(--ink)' }}>Internship Management</strong>
+          <p className="lede" style={{ marginTop: 4 }}>{newInternApps} new application{newInternApps === 1 ? '' : 's'} awaiting review.</p>
+        </div>
+      ) : null}
       <DataTable empty={team.length === 0} emptyTitle="No team members" emptyBody="People in your department will appear here.">
         <thead>
           <tr>

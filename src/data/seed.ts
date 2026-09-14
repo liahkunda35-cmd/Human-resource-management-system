@@ -3,6 +3,8 @@ import type {
   AttendanceRecord,
   Department,
   Employee,
+  Internship,
+  InternshipApplication,
   LeaveBalance,
   LeaveRequest,
   OrgSettings,
@@ -290,41 +292,66 @@ function leaveBalances(): LeaveBalance[] {
   }))
 }
 
+const leaveSickNoteNull = {
+  sickNoteName: null as string | null,
+  sickNoteData: null as string | null,
+  sickNoteMime: null as string | null,
+}
+
 const leaveRequests: LeaveRequest[] = [
   {
     id: 'l1', employeeId: 'e13', type: 'Annual Leave', startDate: '2026-09-03', endDate: '2026-09-10',
     days: 6, reason: 'Family visit in Chipata after the Q3 campaign close.', status: 'Approved',
     reviewedBy: 'e9', reviewedAt: '2026-08-28T10:12:00', reviewNote: 'Cover arranged with Brian.',
-    createdAt: '2026-08-26T09:00:00',
+    createdAt: '2026-08-26T09:00:00', ...leaveSickNoteNull,
   },
   {
     id: 'l2', employeeId: 'e3', type: 'Sick Leave', startDate: '2026-09-08', endDate: '2026-09-09',
     days: 2, reason: 'Medical appointment at UTH and recovery.', status: 'Pending',
     reviewedBy: null, reviewedAt: null, reviewNote: '', createdAt: '2026-09-06T16:40:00',
+    sickNoteName: null, sickNoteData: null, sickNoteMime: null,
   },
   {
     id: 'l3', employeeId: 'e8', type: 'Annual Leave', startDate: '2026-09-18', endDate: '2026-09-22',
     days: 3, reason: 'Long weekend in Siavonga.', status: 'Pending',
-    reviewedBy: null, reviewedAt: null, reviewNote: '', createdAt: '2026-09-05T11:22:00',
+    reviewedBy: null, reviewedAt: null, reviewNote: '', createdAt: '2026-09-05T11:22:00', ...leaveSickNoteNull,
   },
   {
     id: 'l4', employeeId: 'e12', type: 'Emergency Leave', startDate: '2026-08-14', endDate: '2026-08-14',
     days: 1, reason: 'Urgent family matter in Kabwe.', status: 'Approved',
     reviewedBy: 'e2', reviewedAt: '2026-08-14T08:05:00', reviewNote: 'Approved same morning.',
-    createdAt: '2026-08-14T07:40:00',
+    createdAt: '2026-08-14T07:40:00', ...leaveSickNoteNull,
   },
   {
     id: 'l5', employeeId: 'e6', type: 'Unpaid Leave', startDate: '2026-09-21', endDate: '2026-09-21',
     days: 1, reason: 'Personal errand that cannot be moved.', status: 'Rejected',
     reviewedBy: 'e4', reviewedAt: '2026-09-02T14:00:00',
-    reviewNote: 'Peak campaign week — please pick another date.', createdAt: '2026-09-01T09:15:00',
+    reviewNote: 'Peak campaign week — please pick another date.', createdAt: '2026-09-01T09:15:00', ...leaveSickNoteNull,
   },
   {
     id: 'l6', employeeId: 'e10', type: 'Annual Leave', startDate: '2026-10-05', endDate: '2026-10-09',
     days: 5, reason: 'Pre-booked travel to Ndola.', status: 'Pending',
-    reviewedBy: null, reviewedAt: null, reviewNote: '', createdAt: '2026-09-04T13:08:00',
+    reviewedBy: null, reviewedAt: null, reviewNote: '', createdAt: '2026-09-04T13:08:00', ...leaveSickNoteNull,
   },
 ]
+
+const internships: Internship[] = [
+  {
+    id: 'int1',
+    title: 'Software Development Internship',
+    departmentId: 'd2',
+    description: 'Internship opportunity for students interested in software development, APIs, and product delivery with the Information Technology team.',
+    requirements: 'Currently studying IT/Computer Science or related field\nBasic programming knowledge\nWillingness to learn in a team environment',
+    location: 'Lusaka',
+    duration: '3 Months',
+    deadline: '2026-10-15',
+    status: 'Open',
+    createdBy: 'e1',
+    createdAt: '2026-09-01T09:00:00',
+  },
+]
+
+const internshipApplications: InternshipApplication[] = []
 
 
 export function buildSeed(today = new Date(2026, 8, 7)): AppState {
@@ -336,6 +363,9 @@ export function buildSeed(today = new Date(2026, 8, 7)): AppState {
     attendance,
     leaveBalances: leaveBalances(),
     leaveRequests,
+    internships,
+    internshipApplications,
+    passwordResetTokens: [],
     notifications: [
       { id: 'n1', userId: 'e1', title: 'Leave request awaiting review', body: 'Chanda Mwila submitted sick leave for 8–9 Sep.', type: 'leave', read: false, createdAt: '2026-09-06T16:41:00' },
       { id: 'n2', userId: 'e2', title: 'Pending leave in Information Technology', body: 'Kelvin Phiri requested annual leave 18–22 Sep.', type: 'leave', read: false, createdAt: '2026-09-05T11:22:00' },
@@ -361,7 +391,7 @@ export function buildSeed(today = new Date(2026, 8, 7)): AppState {
 }
 
 export const DEMO_ACCOUNTS = [
-  { label: 'HR Manager', email: 'hr@zamtech.co.zm', password: DEMO_PASSWORD, role: 'Admin' },
-  { label: 'IT Manager', email: 'manager@zamtech.co.zm', password: DEMO_PASSWORD, role: 'Manager' },
+  { label: 'Administrator', email: 'hr@zamtech.co.zm', password: DEMO_PASSWORD, role: 'Administrator' },
+  { label: 'HR Manager', email: 'manager@zamtech.co.zm', password: DEMO_PASSWORD, role: 'HR Manager' },
   { label: 'Employee', email: 'employee@zamtech.co.zm', password: DEMO_PASSWORD, role: 'Employee' },
 ]

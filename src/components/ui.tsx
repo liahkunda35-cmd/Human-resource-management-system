@@ -49,8 +49,8 @@ export function Badge({ children, tone = 'neutral' }: { children: ReactNode; ton
 
 export function statusTone(status: string): 'success' | 'warn' | 'danger' | 'info' | 'gold' | 'neutral' {
   const s = status.toLowerCase()
-  if (['active', 'approved', 'paid', 'present', 'done', 'hired', 'completed', 'open'].includes(s)) return 'success'
-  if (['pending', 'late', 'probation', 'draft', 'interview', 'in progress', 'on hold'].includes(s)) return 'warn'
+  if (['active', 'approved', 'paid', 'present', 'done', 'hired', 'completed', 'open', 'accepted'].includes(s)) return 'success'
+  if (['pending', 'late', 'probation', 'draft', 'interview', 'in progress', 'on hold', 'under review', 'requires review', 'documentation required'].includes(s)) return 'warn'
   if (['rejected', 'inactive', 'absent', 'closed'].includes(s)) return 'danger'
   if (['on leave', 'remote', 'selected', 'shortlisted'].includes(s)) return 'info'
   return 'gold'

@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'manager' | 'employee'
+export type Role = 'super_admin' | 'admin' | 'manager' | 'employee'
 export type EmploymentStatus = 'Active' | 'On Leave' | 'Probation' | 'Inactive'
 export type EmploymentType = 'Full-time' | 'Part-time' | 'Contract' | 'Intern'
 export type Gender = 'Female' | 'Male' | 'Non-binary'
@@ -10,7 +10,14 @@ export type LeaveType =
   | 'Paternity Leave'
   | 'Emergency Leave'
   | 'Unpaid Leave'
-export type RequestStatus = 'Pending' | 'Approved' | 'Rejected'
+export type RequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Requires Review' | 'Documentation Required'
+export type InternshipStatus = 'Open' | 'Closed'
+export type InternshipApplicationStatus =
+  | 'Pending'
+  | 'Under Review'
+  | 'Shortlisted'
+  | 'Accepted'
+  | 'Rejected'
 
 export interface Employee {
   id: string
@@ -20,6 +27,7 @@ export interface Employee {
   email: string
   password: string
   role: Role
+  mustChangePassword?: boolean
   gender: Gender
   dateOfBirth: string
   phone: string
@@ -90,6 +98,40 @@ export interface LeaveRequest {
   reviewedAt: string | null
   reviewNote: string
   createdAt: string
+  sickNoteName: string | null
+  sickNoteData: string | null
+  sickNoteMime: string | null
+}
+
+export interface Internship {
+  id: string
+  title: string
+  departmentId: string
+  description: string
+  requirements: string
+  location: string
+  duration: string
+  deadline: string
+  status: InternshipStatus
+  createdBy: string
+  createdAt: string
+}
+
+export interface InternshipApplication {
+  id: string
+  internshipId: string
+  applicantId: string
+  name: string
+  email: string
+  phone: string
+  message: string
+  cvName: string | null
+  cvData: string | null
+  cvMime: string | null
+  status: InternshipApplicationStatus
+  submittedAt: string
+  reviewedAt: string | null
+  reviewedBy: string | null
 }
 
 export interface AppNotification {
@@ -122,6 +164,16 @@ export interface OrgSettings {
   workStart: string
 }
 
+export interface PasswordResetToken {
+  id: string
+  userId: string
+  /** SHA-256 hash of the raw token — never store the raw token */
+  tokenHash: string
+  expiresAt: string
+  usedAt: string | null
+  createdAt: string
+}
+
 export interface AppState {
   employees: Employee[]
   departments: Department[]
@@ -129,6 +181,9 @@ export interface AppState {
   attendance: AttendanceRecord[]
   leaveBalances: LeaveBalance[]
   leaveRequests: LeaveRequest[]
+  internships: Internship[]
+  internshipApplications: InternshipApplication[]
+  passwordResetTokens: PasswordResetToken[]
   notifications: AppNotification[]
   activities: Activity[]
   settings: OrgSettings
@@ -137,4 +192,11 @@ export interface AppState {
 
 export function fullName(e: Pick<Employee, 'firstName' | 'lastName'>): string {
   return `${e.firstName} ${e.lastName}`
+}
+
+export function roleLabel(role: Role): string {
+  if (role === 'super_admin') return 'Super Administrator'
+  if (role === 'admin') return 'Administrator'
+  if (role === 'manager') return 'HR Manager'
+  return 'Employee'
 }

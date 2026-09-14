@@ -151,7 +151,7 @@ export function EmployeesPage() {
     downloadText('aurelia-employees.csv', csv)
   }
 
-  const canEdit = currentUser?.role === 'admin'
+  const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'super_admin'
 
   return (
     <>

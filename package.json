@@ -6,9 +6,12 @@
   "scripts": {
     "start": "vite",
     "dev": "vite",
+    "dev:api": "npm --prefix backend run dev",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:migrate": "npm --prefix backend run db:migrate",
+    "db:seed": "npm --prefix backend run db:seed"
   },
   "dependencies": {
     "framer-motion": "^13.2.0",
