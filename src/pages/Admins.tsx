@@ -13,6 +13,7 @@ export function AdminsPage() {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [position, setPosition] = useState('Administrator')
+  const [password, setPassword] = useState('')
 
   const rows = useMemo(() => {
     const s = q.toLowerCase()
@@ -37,7 +38,7 @@ export function AdminsPage() {
       <PageHeader
         kicker="Administration"
         title="Admin Management"
-        lede="Create Administrator accounts. Temporary passwords are emailed through Nexus — never shown in the browser."
+        lede="Create Administrator accounts. Set a temporary password here. It is stored as a hash and is not shown again."
         actions={<Button variant="gold" onClick={() => setOpen(true)}>Create Admin</Button>}
       />
       <div className="filters">
@@ -88,12 +89,18 @@ export function AdminsPage() {
           onSubmit={async (ev) => {
             ev.preventDefault()
             setBusy(true)
+            if (password.length < 8) {
+              setBusy(false)
+              toast('Temporary password must be at least 8 characters.', 'error')
+              return
+            }
             const result = await createAdminAccount({
               firstName,
               lastName,
               email,
               phone,
               position,
+              password,
             })
             setBusy(false)
             if (result.error) {
@@ -106,6 +113,7 @@ export function AdminsPage() {
             setEmail('')
             setPhone('')
             setPosition('Administrator')
+            setPassword('')
           }}
         >
           <div className="row">
@@ -115,8 +123,9 @@ export function AdminsPage() {
           <div className="field" style={{ marginTop: 10 }}><label>Email</label><input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
           <div className="field" style={{ marginTop: 10 }}><label>Phone</label><input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
           <div className="field" style={{ marginTop: 10 }}><label>Position</label><input className="input" value={position} onChange={(e) => setPosition(e.target.value)} /></div>
+          <div className="field" style={{ marginTop: 10 }}><label>Temporary password</label><input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required autoComplete="new-password" /></div>
           <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
-            A secure temporary password is generated on the server, stored only as a hash, and emailed with the Nexus <code>admin_created</code> template. It is never shown here.
+            Share this temporary password directly. It is hashed before storage and the new administrator must change it at first sign-in.
           </p>
           <FormActions onCancel={() => setOpen(false)} submitLabel={busy ? 'Creating…' : 'Create Admin'} />
         </form>

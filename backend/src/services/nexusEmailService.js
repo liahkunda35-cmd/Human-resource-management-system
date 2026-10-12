@@ -120,3 +120,85 @@ export async function sendUserCreatedEmail({ to, userName, email, password, role
     },
   })
 }
+
+export async function sendEmployeeInviteEmail({ to, userName, email, employeeCode, password, signinUrl }) {
+  const data = {
+    user_name: userName,
+    email,
+    employee_id: employeeCode,
+    employee_code: employeeCode,
+    password,
+    signin_url: signinUrl,
+    expires_hours: '72',
+    role: 'Employee',
+  }
+  try {
+    return await sendNexusNotification({
+      template: 'employee_invited',
+      to,
+      data,
+    })
+  } catch (err) {
+    if (err instanceof NexusConfigError) throw err
+    return sendNexusNotification({
+      template: 'user_created',
+      to,
+      data,
+    })
+  }
+}
+
+export async function sendPasswordResetEmail({ to, userName, resetUrl }) {
+  const data = {
+    user_name: userName,
+    reset_url: resetUrl,
+    expires_hours: '1',
+  }
+  try {
+    return await sendNexusNotification({
+      template: 'password_reset',
+      to,
+      data,
+    })
+  } catch (err) {
+    if (err instanceof NexusConfigError) throw err
+    return sendNexusNotification({
+      template: 'user_created',
+      to,
+      data: {
+        user_name: userName,
+        email: to,
+        password: '',
+        role: 'Employee',
+        reset_url: resetUrl,
+      },
+    })
+  }
+}
+
+export async function sendSignupReceivedEmail({ to, userName, email }) {
+  try {
+    return await sendNexusNotification({
+      template: 'signup_received',
+      to,
+      data: {
+        user_name: userName,
+        email,
+        app_url: env.nexus.appUrl,
+      },
+    })
+  } catch (err) {
+    if (err instanceof NexusConfigError) throw err
+    return sendNexusNotification({
+      template: 'user_created',
+      to,
+      data: {
+        user_name: userName,
+        email,
+        password: '',
+        role: 'Employee',
+      },
+    })
+  }
+}
+

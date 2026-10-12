@@ -1,12 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store/Store'
 import { Avatar, Badge, Button, DataTable, FormActions, Modal, PageHeader, RowActions, statusTone } from '../components/ui'
 import { formatDate } from '../lib/format'
 import { openDataUrl, readFileAsDataURL } from '../lib/files'
 import type { LeaveType } from '../types'
 import { fullName } from '../types'
-
-const TYPES: LeaveType[] = ['Annual Leave', 'Sick Leave', 'Maternity Leave', 'Paternity Leave', 'Emergency Leave', 'Unpaid Leave']
+import { eligibleLeaveTypes, visibleLeaveBalances } from '../lib/leavePolicy'
 
 const REVIEWABLE = new Set(['Pending', 'Requires Review', 'Documentation Required'])
 
@@ -29,6 +28,21 @@ export function LeavePage() {
   const [uploadingLater, setUploadingLater] = useState(false)
 
   const isStaff = currentUser?.role === 'admin' || currentUser?.role === 'manager' || currentUser?.role === 'super_admin'
+  const leaveTypes = eligibleLeaveTypes(currentUser?.gender)
+  const myBalances = useMemo(
+    () =>
+      visibleLeaveBalances(
+        currentUser?.gender,
+        currentUser ? state.leaveBalances.find((b) => b.employeeId === currentUser.id) : undefined,
+      ),
+    [currentUser, state.leaveBalances],
+  )
+
+  useEffect(() => {
+    if (!leaveTypes.includes(type)) {
+      setType(leaveTypes[0] ?? 'Annual Leave')
+    }
+  }, [leaveTypes, type])
   const teamIds = useMemo(() => {
     if (!currentUser) return []
     if (isStaff) return state.employees.map((e) => e.id)
@@ -93,7 +107,7 @@ export function LeavePage() {
     setSickError('')
     try {
       const read = await readFileAsDataURL(file)
-      const err = attachSickNote(selected.id, read, currentUser.id)
+      const err = await attachSickNote(selected.id, read, currentUser.id)
       if (err) toast(err, 'error')
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not upload file.', 'error')
@@ -107,9 +121,33 @@ export function LeavePage() {
       <PageHeader
         kicker="Time away"
         title={isStaff ? 'Leave Management' : 'My Leave'}
-        lede={isStaff ? 'Review requests with care. Balances update on approval.' : 'Apply with dates and a reason. Your manager will review.'}
+        lede={
+          isStaff
+            ? 'Review requests with care. Balances update on approval. Maternity and paternity stay limited to female and male staff.'
+            : 'Apply with dates and a reason. Leave types and balances follow the gender on your profile.'
+        }
         actions={<Button variant="gold" onClick={() => { resetForm(); setOpen(true) }}>{isStaff ? 'Apply for leave' : 'Apply for Leave'}</Button>}
       />
+      {currentUser ? (
+        <section className="leave-balance-panel" aria-label="Leave balances for your gender">
+          <div className="leave-balance-head">
+            <h3>Leave available to you</h3>
+            <p>
+              Shown for a {currentUser.gender.toLowerCase()} employee. Maternity Leave is for female staff;
+              Paternity Leave is for male staff.
+            </p>
+          </div>
+          <div className="leave-balance-grid">
+            {myBalances.map((item) => (
+              <article key={item.type} className="leave-balance-card">
+                <span>{item.type}</span>
+                <strong>{item.days}</strong>
+                <em>days remaining</em>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <div className="filters">
         {isStaff ? <input className="input" placeholder="Search employee or type" value={q} onChange={(e) => setQ(e.target.value)} /> : null}
         <select className="select" value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -175,11 +213,11 @@ export function LeavePage() {
         </tbody>
       </DataTable>
       <Modal open={open} title="Leave request" onClose={() => setOpen(false)}>
-        <form onSubmit={(e) => {
+        <form onSubmit={async (e) => {
           e.preventDefault()
           if (!currentUser) return
           setSubmitting(true)
-          const err = applyLeave({
+          const err = await applyLeave({
             employeeId: currentUser.id,
             type,
             startDate: start,
@@ -199,8 +237,11 @@ export function LeavePage() {
           <div className="field">
             <label>Leave type</label>
             <select className="select" value={type} onChange={(e) => { setType(e.target.value as LeaveType); setSickError('') }}>
-              {TYPES.map((t) => <option key={t}>{t}</option>)}
+              {leaveTypes.map((t) => <option key={t}>{t}</option>)}
             </select>
+            <p className="lede" style={{ marginTop: 6 }}>
+              Only leave that matches your recorded gender is listed.
+            </p>
           </div>
           <div className="row" style={{ marginTop: 10 }}>
             <div className="field"><label>Start date</label><input className="input" type="date" value={start} onChange={(e) => setStart(e.target.value)} required /></div>

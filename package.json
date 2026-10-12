@@ -14,8 +14,12 @@
     "db:seed": "npm --prefix backend run db:seed"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.7",
+    "express": "^5.3.0",
     "framer-motion": "^13.2.0",
     "lucide-react": "^1.41.0",
+    "nodemailer": "^10.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3",
@@ -29,5 +33,10 @@
     "oxlint": "^1.79.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
-  }
+  },
+  "description": "A professional Human Resource Management System for organisations that want a calm, considered people workspace — not a generic admin dashboard.",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }

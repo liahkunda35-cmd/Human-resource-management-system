@@ -23,7 +23,7 @@ router.get('/', authorize('super_admin'), async (_req, res, next) => {
 /** Super Admin creates an Administrator and emails credentials via Nexus admin_created */
 router.post('/', authorize('super_admin'), async (req, res, next) => {
   try {
-    const { firstName, lastName, email, phone, position, departmentId } = req.body || {}
+    const { firstName, lastName, email, phone, position, departmentId, password } = req.body || {}
     const result = await createAccountWithEmail({
       actor: req.user,
       roleCode: 'admin',
@@ -33,6 +33,7 @@ router.post('/', authorize('super_admin'), async (req, res, next) => {
       phone,
       position: position || 'Administrator',
       departmentId,
+      password,
     })
     if (result.error) return res.status(400).json({ error: result.error })
 

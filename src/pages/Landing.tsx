@@ -262,7 +262,6 @@ export function LandingPage() {
         </Link>
         <div className="lp-nav-actions">
           <span className="lp-nav-search" aria-hidden><Search size={17} /></span>
-          <Link to="/login" className="lp-btn lp-btn-brown lp-btn-sm">Sign In</Link>
         </div>
       </header>
 
@@ -298,8 +297,8 @@ export function LandingPage() {
               human resource operations — calm, clear, and built for modern teams.
             </p>
             <div className="lp-hero-ctas lp-anim lp-anim-4">
-              <Link to="/login" className="lp-btn lp-btn-brown">
-                Get Started <ArrowRight size={16} aria-hidden />
+              <Link to="/signup" className="lp-btn lp-btn-brown">
+                Sign Up <ArrowRight size={16} aria-hidden />
               </Link>
               <Link to="/login" className="lp-btn lp-btn-ghost-light">
                 Sign In

@@ -7,7 +7,8 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "db:migrate": "node src/database/migrate.js",
-    "db:seed": "node src/database/seed.js"
+    "db:seed": "node src/database/seed.js",
+    "test": "node --test src/services/leavePolicy.test.js src/services/employeeRegistration.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
@@ -15,6 +16,7 @@
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^10.1.0",
     "pg": "^8.16.3"
   }
 }

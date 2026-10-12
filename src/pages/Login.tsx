@@ -1,28 +1,34 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
 import { useStore } from '../store/Store'
 import { isValidEmailFormat } from '../lib/passwordReset'
+import { sendSignupAckEmail } from '../lib/signupRequests'
+import { roleLabel } from '../types'
 
 export function LoginPage() {
-  const { currentUser, login, toast, authLoading } = useStore()
+  const { currentUser, login, signup, toast, authLoading } = useStore()
   const navigate = useNavigate()
+  const location = useLocation()
+  const tab = location.pathname.includes('signup') ? 'signup' : 'signin'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
   const [show, setShow] = useState(false)
   const [remember, setRemember] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [unlockFields, setUnlockFields] = useState(false)
+  const [signupDone, setSignupDone] = useState(false)
 
-  // Never keep credentials or revealed password across refreshes / navigation.
   useEffect(() => {
     setEmail('')
     setPassword('')
+    setName('')
     setShow(false)
     setRemember(false)
-    setUnlockFields(false)
-  }, [])
+    setError('')
+    setSignupDone(false)
+  }, [tab])
 
   if (authLoading) {
     return (
@@ -33,7 +39,6 @@ export function LoginPage() {
   }
 
   if (currentUser?.mustChangePassword) return <Navigate to="/change-password" replace />
-  if (currentUser) return <Navigate to="/app" replace />
 
   async function submit() {
     setError('')
@@ -54,6 +59,32 @@ export function LoginPage() {
     navigate('/app')
   }
 
+  async function submitSignup() {
+    setError('')
+    const trimmedName = name.trim()
+    const trimmedEmail = email.trim()
+    if (!trimmedName) {
+      setError('Enter your name.')
+      return
+    }
+    if (!isValidEmailFormat(trimmedEmail)) {
+      setError('Enter a valid email address.')
+      return
+    }
+    setBusy(true)
+    const result = await signup(trimmedName, trimmedEmail)
+    if (result.ok) {
+      await sendSignupAckEmail({ toEmail: trimmedEmail, toName: trimmedName })
+    }
+    setBusy(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    setSignupDone(true)
+    toast(result.warning || 'Check your email. Login details will arrive after HR creates your account.')
+  }
+
   return (
     <div className="auth-shell">
       <div className="auth-panel">
@@ -66,8 +97,8 @@ export function LoginPage() {
             <h1>WELCOME</h1>
             <h2>ZamTech Solutions Ltd</h2>
             <p>
-              Sign in to manage employees, attendance, leave, and reports —
-              all in one calm workspace.
+              Employees and administrators use the same workspace. Sign up with your name
+              and email. Human Resources will email an activation link so you can choose a password.
             </p>
           </div>
         </aside>
@@ -77,82 +108,151 @@ export function LoginPage() {
           autoComplete="off"
           onSubmit={(e) => {
             e.preventDefault()
-            void submit()
+            if (tab === 'signup') void submitSignup()
+            else void submit()
           }}
         >
           <div className="auth-side-badge" aria-hidden>
             <span>A</span>
           </div>
           <p className="auth-side-kicker">Secure access</p>
-          <h3>Sign in</h3>
-          <p className="auth-lede">Use the work credentials emailed to you by your administrator.</p>
+          <div className="auth-tabs" role="tablist" aria-label="Account">
+            <Link to="/login" className={`auth-tab${tab === 'signin' ? ' auth-tab-active' : ''}`} role="tab" aria-selected={tab === 'signin'}>
+              Sign in
+            </Link>
+            <Link to="/signup" className={`auth-tab${tab === 'signup' ? ' auth-tab-active' : ''}`} role="tab" aria-selected={tab === 'signup'}>
+              Sign up
+            </Link>
+          </div>
 
-          <div className="auth-fields">
-            <label className="auth-label" htmlFor="login-email">Email</label>
-            <div className="auth-field">
-              <span className="auth-field-icon"><User size={16} aria-hidden /></span>
-              <input
-                id="login-email"
-                name="aurelia-email"
-                type="email"
-                autoComplete="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                readOnly={!unlockFields}
-                onFocus={() => setUnlockFields(true)}
-                placeholder="name@zamtech.co.zm"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
+          {tab === 'signup' && signupDone ? (
+            <>
+              <h3>Check your email</h3>
+              <p className="auth-lede">
+                We recorded your details. Your login email and password will be sent to
+                {' '}{email} after an administrator creates your account.
+              </p>
+              <Link to="/login" className="auth-primary" style={{ textDecoration: 'none' }}>
+                Go to Sign in
+                <ArrowRight size={18} aria-hidden />
+              </Link>
+            </>
+          ) : null}
 
-            <label className="auth-label" htmlFor="login-password">Password</label>
-            <div className="auth-field">
-              <span className="auth-field-icon"><Lock size={16} aria-hidden /></span>
-              <input
-                id="login-password"
-                name="aurelia-password"
-                type={show ? 'text' : 'password'}
-                autoComplete="new-password"
-                readOnly={!unlockFields}
-                onFocus={() => setUnlockFields(true)}
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <button
-                type="button"
-                className="auth-show"
-                onClick={() => setShow((v) => !v)}
-                aria-label={show ? 'Hide password' : 'Show password'}
-              >
-                {show ? <EyeOff size={16} /> : <Eye size={16} />}
+          {tab === 'signup' && !signupDone ? (
+            <>
+              <h3>Sign up</h3>
+              <p className="auth-lede">Enter only your name and email. Login details will be sent to that inbox after HR creates your account.</p>
+              <div className="auth-fields">
+                <label className="auth-label" htmlFor="signup-name">Name</label>
+                <div className="auth-field">
+                  <span className="auth-field-icon"><User size={16} aria-hidden /></span>
+                  <input
+                    id="signup-name"
+                    type="text"
+                    autoComplete="name"
+                    placeholder="Your full name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+                <label className="auth-label" htmlFor="signup-email">Email</label>
+                <div className="auth-field">
+                  <span className="auth-field-icon"><Mail size={16} aria-hidden /></span>
+                  <input
+                    id="signup-email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="name@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              {error ? <div className="field-error">{error}</div> : null}
+              <button type="submit" className="auth-primary" disabled={busy}>
+                {busy ? 'Sending…' : 'Submit'}
+                {!busy ? <ArrowRight size={18} aria-hidden /> : null}
               </button>
-            </div>
-          </div>
+              <p className="auth-side-note">Already have login details? Use the Sign in tab.</p>
+            </>
+          ) : null}
 
-          <div className="auth-meta">
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-              />
-              Remember me
-            </label>
-            <Link to="/forgot-password" className="auth-link">Forgot password?</Link>
-          </div>
+          {tab === 'signin' ? (
+            <>
+              {currentUser ? (
+                <p className="auth-lede">
+                  You are signed in as {currentUser.firstName} {currentUser.lastName} ({roleLabel(currentUser.role)}).{' '}
+                  <Link to="/app" className="auth-link">Continue to workspace</Link>
+                  {' '}or sign in below with a different account.
+                </p>
+              ) : null}
+              <h3>Sign in</h3>
+              <p className="auth-lede">Employees sign in after activating the link Human Resources emails them.</p>
+              <div className="auth-fields">
+                <label className="auth-label" htmlFor="login-email">Email or employee ID</label>
+                <div className="auth-field">
+                  <span className="auth-field-icon"><User size={16} aria-hidden /></span>
+                  <input
+                    id="login-email"
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    placeholder="admin, ZTS-26001, or work email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required={tab === 'signin'}
+                  />
+                </div>
 
-          {error ? <div className="field-error">{error}</div> : null}
+                <label className="auth-label" htmlFor="login-password">Password</label>
+                <div className="auth-field">
+                  <span className="auth-field-icon"><Lock size={16} aria-hidden /></span>
+                  <input
+                    id="login-password"
+                    name="password"
+                    type={show ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required={tab === 'signin'}
+                  />
+                  <button
+                    type="button"
+                    className="auth-show"
+                    onClick={() => setShow((v) => !v)}
+                    aria-label={show ? 'Hide password' : 'Show password'}
+                  >
+                    {show ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
 
-          <button type="submit" className="auth-primary" disabled={busy}>
-            {busy ? 'Signing in…' : 'Sign in'}
-            <ArrowRight size={18} aria-hidden />
-          </button>
+              <div className="auth-meta">
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                  />
+                  Remember me
+                </label>
+                <Link to="/forgot-password" className="auth-link">Forgot password?</Link>
+              </div>
 
-          <p className="auth-side-note">Protected workspace for ZamTech staff only.</p>
+              {error ? <div className="field-error">{error}</div> : null}
+
+              <button type="submit" className="auth-primary" disabled={busy}>
+                {busy ? 'Signing in…' : 'Sign in'}
+                <ArrowRight size={18} aria-hidden />
+              </button>
+            </>
+          ) : null}
         </form>
       </div>
     </div>

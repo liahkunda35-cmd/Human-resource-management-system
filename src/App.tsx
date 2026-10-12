@@ -4,13 +4,14 @@ import { AppLayout, RequireAuth } from './components/Layout'
 import { Toasts } from './components/ui'
 import { LandingPage } from './pages/Landing'
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage } from './pages/Login'
+import { ActivateAccountPage } from './pages/ActivateAccount'
 import { DashboardPage } from './pages/Dashboard'
 import { EmployeeProfilePage, EmployeesPage } from './pages/Employees'
 import { DepartmentsPage } from './pages/Departments'
 import { AttendancePage } from './pages/Attendance'
 import { LeavePage } from './pages/Leave'
 import { ReportsPage } from './pages/Reports'
-import { InternshipsPage } from './pages/Internships'
+import { WorkshopsPage } from './pages/Workshops'
 import { UsersPage } from './pages/Users'
 import { AdminsPage } from './pages/Admins'
 import { ChangePasswordPage } from './pages/ChangePassword'
@@ -47,13 +48,13 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<LoginPage />} />
+          <Route path="/sign-up" element={<Navigate to="/signup" replace />} />
+          <Route path="/register" element={<Navigate to="/signup" replace />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
-          {/* Legacy public registration URLs — no registration form */}
-          <Route path="/signup" element={<Navigate to="/login" replace />} />
-          <Route path="/sign-up" element={<Navigate to="/login" replace />} />
-          <Route path="/register" element={<Navigate to="/login" replace />} />
+          <Route path="/activate" element={<ActivateAccountPage />} />
           <Route element={<RequireAuth />}>
             <Route
               path="/app"
@@ -74,11 +75,12 @@ export default function App() {
               <Route path="payroll" element={<RequireAuth roles={['admin', 'manager', 'super_admin']}><PayrollPage /></RequireAuth>} />
               <Route path="recruitment" element={<RequireAuth roles={['admin', 'manager', 'super_admin']}><RecruitmentPage /></RequireAuth>} />
               <Route path="performance" element={<RequireAuth roles={['admin', 'manager', 'super_admin']}><PerformancePage /></RequireAuth>} />
-              <Route path="internships" element={<InternshipsPage />} />
+              <Route path="workshops" element={<WorkshopsPage />} />
+              <Route path="internships" element={<Navigate to="/app/workshops" replace />} />
               <Route path="reports" element={<RequireAuth roles={['admin', 'manager', 'super_admin']}><ReportsPage /></RequireAuth>} />
               <Route path="notifications" element={<NotificationsPage />} />
               <Route path="admins" element={<RequireAuth roles={['super_admin']}><AdminsPage /></RequireAuth>} />
-              <Route path="users" element={<RequireAuth roles={['admin']}><UsersPage /></RequireAuth>} />
+              <Route path="users" element={<RequireAuth roles={['admin', 'super_admin']}><UsersPage /></RequireAuth>} />
               <Route path="settings" element={<RequireAuth roles={['admin', 'manager', 'super_admin']}><SettingsPage /></RequireAuth>} />
             </Route>
           </Route>

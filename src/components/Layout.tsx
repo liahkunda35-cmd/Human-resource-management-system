@@ -8,7 +8,7 @@ import {
   ChevronDown,
   ClipboardList,
   FileText,
-  GraduationCap,
+  Presentation,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -34,7 +34,7 @@ const NAV: {
   icon: typeof Users
   roles: Role[]
   group: 'Overview' | 'People' | 'Time' | 'Talent' | 'Insight' | 'Admin'
-  badgeKey?: 'internship'
+  badgeKey?: 'workshops'
 }[] = [
   { to: '/app', label: 'Dashboard', icon: LayoutDashboard, roles: ['super_admin', 'admin', 'manager', 'employee'], group: 'Overview' },
   { to: '/app/profile', label: 'My Profile', icon: UserCircle, roles: ['employee'], group: 'Overview' },
@@ -46,7 +46,7 @@ const NAV: {
   { to: '/app/payroll', label: 'Payroll', icon: Wallet, roles: ['super_admin', 'admin', 'manager'], group: 'Talent' },
   { to: '/app/recruitment', label: 'Recruitment', icon: Briefcase, roles: ['super_admin', 'admin', 'manager'], group: 'Talent' },
   { to: '/app/performance', label: 'Performance', icon: Target, roles: ['super_admin', 'admin', 'manager'], group: 'Talent' },
-  { to: '/app/internships', label: 'Internship Management', icon: GraduationCap, roles: ['super_admin', 'admin', 'manager', 'employee'], group: 'Talent', badgeKey: 'internship' },
+  { to: '/app/workshops', label: 'Scheduled Workshops', icon: Presentation, roles: ['super_admin', 'admin', 'manager', 'employee'], group: 'Talent', badgeKey: 'workshops' },
   { to: '/app/reports', label: 'Reports', icon: BarChart3, roles: ['super_admin', 'admin', 'manager'], group: 'Insight' },
   { to: '/app/notifications', label: 'Notifications', icon: Bell, roles: ['employee'], group: 'Insight' },
   { to: '/app/admins', label: 'Admin Management', icon: Shield, roles: ['super_admin'], group: 'Admin' },
@@ -64,8 +64,8 @@ function notificationPath(type: string): string {
       return '/app/attendance'
     case 'employee':
       return '/app/employees'
-    case 'internship':
-      return '/app/internships'
+    case 'workshop':
+      return '/app/workshops'
     default:
       return '/app'
   }
@@ -86,10 +86,7 @@ export function AppLayout() {
     .filter((g) => g.items.length > 0)
   const myNotes = state.notifications.filter((n) => n.userId === currentUser?.id).slice(0, 8)
   const unread = myNotes.filter((n) => !n.read).length
-  const newInternshipApps =
-    currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'super_admin')
-      ? state.internshipApplications.filter((a) => a.status === 'Pending').length
-      : 0
+  const upcomingWorkshops = state.workshops.filter((w) => w.status === 'Scheduled').length
 
   const activeNav = useMemo(() => {
     const exact = items.find((n) => n.to === location.pathname)
@@ -141,7 +138,7 @@ export function AppLayout() {
               {links.map((item) => {
                 const Icon = item.icon
                 const badge =
-                  item.badgeKey === 'internship' && newInternshipApps > 0 ? newInternshipApps : 0
+                  item.badgeKey === 'workshops' && upcomingWorkshops > 0 ? upcomingWorkshops : 0
                 return (
                   <NavLink
                     key={item.to}
@@ -153,8 +150,8 @@ export function AppLayout() {
                     <span className="nav-label">
                       {item.to === '/app/leave' && currentUser.role === 'employee'
                         ? 'My Leave'
-                        : item.to === '/app/internships' && currentUser.role === 'employee'
-                          ? 'Internships'
+                        : item.to === '/app/workshops' && currentUser.role === 'employee'
+                          ? 'Workshops'
                           : item.to === '/app/attendance' && currentUser.role === 'employee'
                             ? 'My Attendance'
                             : item.label}

@@ -4,11 +4,15 @@ import { Avatar, Button, FormActions, PageHeader } from '../components/ui'
 import { fullName, roleLabel } from '../types'
 
 export function ProfilePage() {
-  const { currentUser, state, updateProfile } = useStore()
+  const { currentUser, state, updateProfile, changePassword, toast } = useStore()
   const [phone, setPhone] = useState(currentUser?.phone ?? '')
   const [address, setAddress] = useState(currentUser?.address ?? '')
   const [emergencyContact, setEmergencyContact] = useState(currentUser?.emergencyContact ?? '')
   const [emergencyPhone, setEmergencyPhone] = useState(currentUser?.emergencyPhone ?? '')
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [nextPassword, setNextPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordBusy, setPasswordBusy] = useState(false)
 
   if (!currentUser) return null
   const dept = state.departments.find((d) => d.id === currentUser.departmentId)
@@ -38,6 +42,40 @@ export function ProfilePage() {
           </div>
           <div style={{ marginTop: 16 }}>
             <Button type="submit" variant="gold">Save profile</Button>
+          </div>
+        </form>
+      </div>
+      <div className="card" style={{ padding: 20, maxWidth: 720, marginTop: 16 }}>
+        <h3 style={{ marginTop: 0 }}>Change password</h3>
+        <p className="lede">You can update your password at any time. Other signed-in sessions will stop working.</p>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault()
+            if (nextPassword.length < 8) {
+              toast('Use at least 8 characters for your new password.', 'error')
+              return
+            }
+            if (nextPassword !== confirmPassword) {
+              toast('New password and confirmation do not match.', 'error')
+              return
+            }
+            setPasswordBusy(true)
+            const err = await changePassword(currentUser.id, currentPassword, nextPassword)
+            setPasswordBusy(false)
+            if (err) {
+              toast(err, 'error')
+              return
+            }
+            setCurrentPassword('')
+            setNextPassword('')
+            setConfirmPassword('')
+          }}
+        >
+          <div className="field" style={{ marginTop: 10 }}><label>Current password</label><input className="input" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required autoComplete="current-password" /></div>
+          <div className="field" style={{ marginTop: 10 }}><label>New password</label><input className="input" type="password" value={nextPassword} onChange={(e) => setNextPassword(e.target.value)} required minLength={8} autoComplete="new-password" /></div>
+          <div className="field" style={{ marginTop: 10 }}><label>Confirm new password</label><input className="input" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} autoComplete="new-password" /></div>
+          <div style={{ marginTop: 16 }}>
+            <Button type="submit" variant="gold" disabled={passwordBusy}>{passwordBusy ? 'Saving…' : 'Update password'}</Button>
           </div>
         </form>
       </div>
@@ -93,7 +131,7 @@ export function NotificationsPage() {
       <PageHeader
         kicker="Inbox"
         title="Notifications"
-        lede="Leave, attendance, and internship updates for your account."
+        lede="Leave, attendance, and workshop updates for your account."
         actions={notes.some((n) => !n.read) ? <Button variant="ghost" onClick={() => markAllRead(currentUser.id)}>Mark all read</Button> : null}
       />
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -198,10 +236,10 @@ function DataTableStub({ rows }: { rows: { name: string; gross: number }[] }) {
 export function RecruitmentPage() {
   return (
     <>
-      <PageHeader kicker="Hiring" title="Recruitment" lede="Track openings alongside Internship Management for student placements." />
+      <PageHeader kicker="Hiring" title="Recruitment" lede="Track permanent openings separately from scheduled workshops." />
       <div className="card empty">
         <h3>Recruitment board</h3>
-        <p>Use Internship Management for internship openings. Permanent roles can be tracked here as your process expands.</p>
+        <p>Permanent roles can be tracked here. Learning sessions are managed under Scheduled Workshops.</p>
       </div>
     </>
   )

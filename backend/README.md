@@ -29,6 +29,8 @@ API listens on http://localhost:4000
 Frontend Vite proxies `/api` → this server.
 
 ## Account model
-- Super Admin (seeded) → Admin Management → creates Admins → Nexus `admin_created`
-- Admin → Employee Accounts → creates Employees → Nexus `user_created`
-- No public sign-up
+- Super Admin is created only by `npm run db:seed`, using `SEED_SUPER_ADMIN_EMAIL` and `SEED_SUPER_ADMIN_PASSWORD`
+- Super Admin → Admin Management → creates Administrators
+- Administrator or HR Manager → Employee Accounts or Employees → creates Employees
+- Public registration is closed (`/api/auth/signup` returns 403)
+- Passwords are bcrypt hashes. Temporary passwords are never returned by the API

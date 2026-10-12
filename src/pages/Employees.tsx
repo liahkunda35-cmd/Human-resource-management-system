@@ -4,8 +4,8 @@ import { Download, Plus, Search } from 'lucide-react'
 import { useStore } from '../store/Store'
 import { Avatar, Badge, Button, ConfirmDialog, DataTable, EmptyState, Field, FormActions, Modal, PageHeader, RowActions, Tabs, statusTone } from '../components/ui'
 import { deptName, downloadText, formatDate, toCSV, todayISO } from '../lib/format'
-import type { Employee, EmploymentStatus, EmploymentType, Gender, Role } from '../types'
-import { fullName } from '../types'
+import type { Employee, EmploymentStatus, EmploymentType, Gender } from '../types'
+import { accountLifecycleLabel, fullName } from '../types'
 import { AttendanceCalendar } from '../components/ClockWidget'
 
 const emptyForm = {
@@ -22,7 +22,7 @@ const emptyForm = {
   dateJoined: '',
   managerId: '',
   status: 'Active' as EmploymentStatus,
-  role: 'employee' as Role,
+  role: 'employee' as Employee['role'],
   basicSalary: 8500,
   housingAllowance: 1500,
   transportAllowance: 1000,
@@ -35,7 +35,7 @@ const emptyForm = {
 }
 
 export function EmployeesPage() {
-  const { state, currentUser, addEmployee, saveEmployee, deactivateEmployee } = useStore()
+  const { state, currentUser, createEmployeeAccount, saveEmployee, deactivateEmployee } = useStore()
   const [q, setQ] = useState('')
   const [dept, setDept] = useState('all')
   const [status, setStatus] = useState('all')
@@ -45,6 +45,7 @@ export function EmployeesPage() {
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [kill, setKill] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const navigate = useNavigate()
   const location = useLocation() as { state?: { openAdd?: boolean } }
 
@@ -58,7 +59,9 @@ export function EmployeesPage() {
       list = list.filter((e) => `${fullName(e)} ${e.email} ${e.employeeId} ${e.position}`.toLowerCase().includes(s))
     }
     if (dept !== 'all') list = list.filter((e) => e.departmentId === dept)
-    if (status !== 'all') list = list.filter((e) => e.status === status)
+    if (status !== 'all') {
+      list = list.filter((e) => accountLifecycleLabel(e) === status)
+    }
     return [...list].sort((a, b) =>
       sort === 'name' ? fullName(a).localeCompare(fullName(b)) : b.dateJoined.localeCompare(a.dateJoined),
     )
@@ -123,14 +126,37 @@ export function EmployeesPage() {
     return Object.keys(e).length === 0
   }
 
-  function save() {
+  async function save() {
     if (!validate()) return
-    const payload = {
-      ...form,
-      managerId: form.managerId || null,
+    setSaving(true)
+    if (editId) {
+      const err = await saveEmployee(editId, { ...form, managerId: form.managerId || null })
+      setSaving(false)
+      if (!err) setOpen(false)
+      return
     }
-    if (editId) saveEmployee(editId, payload)
-    else addEmployee(payload)
+    const result = await createEmployeeAccount({
+      firstName: form.firstName,
+      lastName: form.lastName,
+      email: form.email,
+      phone: form.phone,
+      address: form.address,
+      gender: form.gender,
+      dateOfBirth: form.dateOfBirth,
+      departmentId: form.departmentId,
+      position: form.position,
+      employmentType: form.employmentType,
+      dateJoined: form.dateJoined,
+      basicSalary: form.basicSalary,
+      housingAllowance: form.housingAllowance,
+      transportAllowance: form.transportAllowance,
+      otherAllowance: form.otherAllowance,
+      taxRate: form.taxRate,
+      bankName: form.bankName,
+      accountNumber: form.accountNumber,
+    })
+    setSaving(false)
+    if (result.error) return
     setOpen(false)
   }
 
@@ -151,7 +177,7 @@ export function EmployeesPage() {
     downloadText('aurelia-employees.csv', csv)
   }
 
-  const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'super_admin'
+  const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'manager'
 
   return (
     <>
@@ -177,7 +203,7 @@ export function EmployeesPage() {
         </select>
         <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="all">All statuses</option>
-          {['Active', 'On Leave', 'Probation', 'Inactive'].map((s) => <option key={s}>{s}</option>)}
+          {['Active', 'Invited', 'Expired', 'On Leave', 'Probation', 'Inactive'].map((s) => <option key={s}>{s}</option>)}
         </select>
         <select className="select" value={sort} onChange={(e) => setSort(e.target.value as 'name' | 'joined')}>
           <option value="name">Sort by name</option>
@@ -195,7 +221,9 @@ export function EmployeesPage() {
           </tr>
         </thead>
         <tbody>
-          {scoped.map((e) => (
+          {scoped.map((e) => {
+            const label = accountLifecycleLabel(e)
+            return (
             <tr key={e.id}>
               <td>
                 <div className="person">
@@ -208,7 +236,7 @@ export function EmployeesPage() {
               </td>
               <td>{deptName(state.departments, e.departmentId)}</td>
               <td>{e.position}</td>
-              <td><Badge tone={statusTone(e.status)}>{e.status}</Badge></td>
+              <td><Badge tone={statusTone(label)}>{label}</Badge></td>
               <td>
                 <RowActions items={[
                   { label: 'View', onClick: () => navigate(`/app/employees/${e.id}`) },
@@ -217,11 +245,12 @@ export function EmployeesPage() {
                 ]} />
               </td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </DataTable>
       <Modal open={open} title={editId ? 'Edit employee' : 'Add employee'} onClose={() => setOpen(false)} wide>
-        <form onSubmit={(e) => { e.preventDefault(); save() }}>
+        <form onSubmit={(e) => { e.preventDefault(); void save() }}>
         <div className="row">
           <Field label="First name" error={errors.firstName}><input className="input" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></Field>
           <Field label="Last name" error={errors.lastName}><input className="input" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></Field>
@@ -247,36 +276,37 @@ export function EmployeesPage() {
               <option>Full-time</option><option>Part-time</option><option>Contract</option><option>Intern</option>
             </select>
           </Field>
-          <Field label="Date joined" error={errors.dateJoined}><input className="input" type="date" value={form.dateJoined} onChange={(e) => setForm({ ...form, dateJoined: e.target.value })} /></Field>
+          <Field label="Start date" error={errors.dateJoined}><input className="input" type="date" value={form.dateJoined} onChange={(e) => setForm({ ...form, dateJoined: e.target.value })} /></Field>
           <Field label="Manager">
             <select className="select" value={form.managerId} onChange={(e) => setForm({ ...form, managerId: e.target.value })}>
               <option value="">None</option>
               {state.employees.filter((e) => e.role !== 'employee').map((e) => <option key={e.id} value={e.id}>{fullName(e)}</option>)}
             </select>
           </Field>
+          {editId ? (
           <Field label="Status">
             <select className="select" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as EmploymentStatus })}>
               <option>Active</option><option>On Leave</option><option>Probation</option><option>Inactive</option>
             </select>
           </Field>
-          <Field label="System role">
-            <select className="select" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}>
-              <option value="employee">Employee</option>
-              <option value="manager">Manager</option>
-              <option value="admin">Admin / HR</option>
-            </select>
-          </Field>
+          ) : null}
           <Field label="Basic salary"><input className="input" type="number" value={form.basicSalary} onChange={(e) => setForm({ ...form, basicSalary: Number(e.target.value) })} /></Field>
+          <Field label="Housing allowance"><input className="input" type="number" value={form.housingAllowance} onChange={(e) => setForm({ ...form, housingAllowance: Number(e.target.value) })} /></Field>
+          <Field label="Transport allowance"><input className="input" type="number" value={form.transportAllowance} onChange={(e) => setForm({ ...form, transportAllowance: Number(e.target.value) })} /></Field>
+          <Field label="Other allowance"><input className="input" type="number" value={form.otherAllowance} onChange={(e) => setForm({ ...form, otherAllowance: Number(e.target.value) })} /></Field>
+          <Field label="Tax rate"><input className="input" type="number" step="0.01" value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: Number(e.target.value) })} /></Field>
+          <Field label="Bank name"><input className="input" value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} /></Field>
+          <Field label="Account number"><input className="input" value={form.accountNumber} onChange={(e) => setForm({ ...form, accountNumber: e.target.value })} /></Field>
         </div>
         <Field label="Address"><input className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></Field>
-          <FormActions onCancel={() => setOpen(false)} submitLabel={editId ? 'Save changes' : 'Create employee'} />
+          <FormActions onCancel={() => setOpen(false)} submitLabel={saving ? 'Saving…' : editId ? 'Save changes' : 'Create employee'} />
         </form>
       </Modal>
       <ConfirmDialog
         open={Boolean(kill)}
-        title="Are you sure you want to delete this employee?"
-        body="They will no longer be able to sign in. Historical records are kept."
-        confirmLabel="Delete"
+        title="Deactivate this employee?"
+        body="They will no longer be able to sign in, and open sessions stop immediately. Historical records are kept."
+        confirmLabel="Deactivate"
         danger
         onClose={() => setKill(null)}
         onConfirm={() => {
@@ -301,9 +331,10 @@ export function EmployeeProfilePage() {
   const att = state.attendance.filter((a) => a.employeeId === emp.id).slice(0, 12)
   const leave = state.leaveRequests.filter((l) => l.employeeId === emp.id)
 
+  const lifecycle = accountLifecycleLabel(emp)
   return (
     <>
-      <PageHeader kicker={emp.employeeId} title={fullName(emp)} lede={`${emp.position} · ${deptName(state.departments, emp.departmentId)}`} actions={<Badge tone={statusTone(emp.status)}>{emp.status}</Badge>} />
+      <PageHeader kicker={emp.employeeId} title={fullName(emp)} lede={`${emp.position} · ${deptName(state.departments, emp.departmentId)}`} actions={<Badge tone={statusTone(lifecycle)}>{lifecycle}</Badge>} />
       <div className="card" style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
         <Avatar employee={emp} size="lg" />
         <div>

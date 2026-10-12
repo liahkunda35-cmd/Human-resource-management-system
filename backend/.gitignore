@@ -1,3 +1,5 @@
 node_modules/
 .env
+.dev-admin.json
+.signup-requests.json
 *.log

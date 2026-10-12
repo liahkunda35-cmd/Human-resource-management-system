@@ -8,16 +8,15 @@ export type LeaveType =
   | 'Sick Leave'
   | 'Maternity Leave'
   | 'Paternity Leave'
+  | 'Compassionate Leave'
+  | 'Study Leave'
   | 'Emergency Leave'
   | 'Unpaid Leave'
 export type RequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Requires Review' | 'Documentation Required'
-export type InternshipStatus = 'Open' | 'Closed'
-export type InternshipApplicationStatus =
-  | 'Pending'
-  | 'Under Review'
-  | 'Shortlisted'
-  | 'Accepted'
-  | 'Rejected'
+export type WorkshopStatus = 'Scheduled' | 'Completed' | 'Cancelled'
+export type WorkshopAudience = 'all' | 'department' | 'employees'
+
+export type AccountStatus = 'invited' | 'active' | 'expired' | 'inactive' | 'locked'
 
 export interface Employee {
   id: string
@@ -28,6 +27,7 @@ export interface Employee {
   password: string
   role: Role
   mustChangePassword?: boolean
+  accountStatus?: AccountStatus
   gender: Gender
   dateOfBirth: string
   phone: string
@@ -83,6 +83,8 @@ export interface LeaveBalance {
   paternity: number
   emergency: number
   unpaid: number
+  compassionate: number
+  study: number
 }
 
 export interface LeaveRequest {
@@ -103,35 +105,24 @@ export interface LeaveRequest {
   sickNoteMime: string | null
 }
 
-export interface Internship {
+export interface Workshop {
   id: string
   title: string
-  departmentId: string
   description: string
-  requirements: string
+  date: string
+  startTime: string
+  endTime: string
   location: string
-  duration: string
-  deadline: string
-  status: InternshipStatus
-  createdBy: string
+  facilitator: string
+  departmentId: string | null
+  departmentName?: string
+  category: string
+  status: WorkshopStatus
+  notes: string
+  audience: WorkshopAudience
+  participantIds: string[]
+  createdBy: string | null
   createdAt: string
-}
-
-export interface InternshipApplication {
-  id: string
-  internshipId: string
-  applicantId: string
-  name: string
-  email: string
-  phone: string
-  message: string
-  cvName: string | null
-  cvData: string | null
-  cvMime: string | null
-  status: InternshipApplicationStatus
-  submittedAt: string
-  reviewedAt: string | null
-  reviewedBy: string | null
 }
 
 export interface AppNotification {
@@ -181,8 +172,7 @@ export interface AppState {
   attendance: AttendanceRecord[]
   leaveBalances: LeaveBalance[]
   leaveRequests: LeaveRequest[]
-  internships: Internship[]
-  internshipApplications: InternshipApplication[]
+  workshops: Workshop[]
   passwordResetTokens: PasswordResetToken[]
   notifications: AppNotification[]
   activities: Activity[]
@@ -196,7 +186,15 @@ export function fullName(e: Pick<Employee, 'firstName' | 'lastName'>): string {
 
 export function roleLabel(role: Role): string {
   if (role === 'super_admin') return 'Super Administrator'
-  if (role === 'admin') return 'Administrator'
+  if (role === 'admin') return 'Admin / HR'
   if (role === 'manager') return 'HR Manager'
   return 'Employee'
+}
+
+export function accountLifecycleLabel(employee: Pick<Employee, 'status' | 'accountStatus'>): string {
+  const status = (employee.accountStatus || '').toLowerCase()
+  if (status === 'invited') return 'Invited'
+  if (status === 'expired') return 'Expired'
+  if (status === 'inactive') return 'Inactive'
+  return employee.status
 }

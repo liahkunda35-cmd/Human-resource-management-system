@@ -12,6 +12,7 @@ export function apiUserToEmployee(u: ApiUser): Employee {
     password: '',
     role: u.role as Role,
     mustChangePassword: u.mustChangePassword,
+    accountStatus: (u.accountStatus as Employee['accountStatus']) || 'active',
     gender: (u.gender as Employee['gender']) || 'Female',
     dateOfBirth: u.dateOfBirth || '1990-01-01',
     phone: u.phone || '',

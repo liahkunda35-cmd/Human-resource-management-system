@@ -13,37 +13,74 @@ import type {
   AttendanceRecord,
   Department,
   Employee,
-  Internship,
-  InternshipApplication,
-  InternshipApplicationStatus,
-  InternshipStatus,
+  LeaveBalance,
   LeaveRequest,
   LeaveType,
   OrgSettings,
   PasswordResetToken,
   RequestStatus,
   Role,
+  Workshop,
+  WorkshopStatus,
 } from '../types'
 import { fullName } from '../types'
 import {
-  buildResetPath,
-  buildResetUrl,
   delay,
-  generateResetToken,
-  hashToken,
   isValidEmailFormat,
   RESET_TOKENS_KEY,
-  resetTokenExpiresAt,
-  sendPasswordResetEmail,
 } from '../lib/passwordReset'
-import { apiRequest, ApiError, getToken, setToken } from '../services/api'
+import {
+  apiRequest,
+  ApiError,
+  getToken,
+  setToken,
+} from '../services/api'
 import type { ApiUser } from '../services/api'
 import { apiUserToEmployee } from '../services/mappers'
+import { leaveEligibilityError } from '../lib/leavePolicy'
+import {
+  completeLocalSignupRequest,
+  readLocalSignupRequests,
+  saveLocalSignupRequest,
+  type SignupRequest,
+} from '../lib/signupRequests'
 
 const STATE_KEY = 'zamtech-hrms-v3'
 const LEGACY_STATE_KEY = 'zamtech-hrms-v2'
 const SESSION_KEY = 'zamtech-hrms-session'
-const REMEMBER_KEY = 'zamtech-hrms-remember'
+
+const DEV_ADMIN_ID = 'dev-admin'
+
+function offlineDevAdmin(actorId: string | null, err: unknown) {
+  return actorId === DEV_ADMIN_ID && (!(err instanceof ApiError) || err.status >= 500)
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
+function mergeDepartments(
+  current: Department[],
+  incoming: { id: string; name: string; description: string }[],
+): Department[] {
+  const byId = new Map(current.map((d) => [d.id, d]))
+  for (const d of incoming) {
+    const prev = byId.get(d.id)
+    byId.set(d.id, {
+      id: d.id,
+      name: d.name,
+      description: d.description || '',
+      managerId: prev?.managerId ?? null,
+    })
+  }
+  return Array.from(byId.values())
+}
+
+function mergeBalances(current: LeaveBalance[], incoming: LeaveBalance[]): LeaveBalance[] {
+  const byId = new Map(current.map((b) => [b.employeeId, { ...b, compassionate: b.compassionate ?? 5, study: b.study ?? 5 }]))
+  for (const b of incoming) byId.set(b.employeeId, b)
+  return Array.from(byId.values())
+}
 
 function readResetTokens(): PasswordResetToken[] {
   try {
@@ -76,12 +113,19 @@ function normalizeState(raw: Partial<AppState>): AppState {
     sickNoteData: r.sickNoteData ?? null,
     sickNoteMime: r.sickNoteMime ?? null,
   }))
+  const employees = (raw.employees ?? seed.employees).map((employee) => ({ ...employee, password: '' }))
   return {
     ...seed,
     ...raw,
+    employees,
     leaveRequests,
-    internships: raw.internships ?? seed.internships,
-    internshipApplications: raw.internshipApplications ?? seed.internshipApplications,
+    leaveBalances: (raw.leaveBalances ?? seed.leaveBalances).map((b) => ({
+      ...b,
+      compassionate: b.compassionate ?? 5,
+      study: b.study ?? 5,
+    })),
+    leaveTypeDays: { ...seed.leaveTypeDays, ...(raw.leaveTypeDays ?? {}) },
+    workshops: raw.workshops ?? [],
     passwordResetTokens: mergeResetTokens(raw.passwordResetTokens ?? []),
   }
 }
@@ -94,10 +138,6 @@ function loadState(): AppState {
     /* seed */
   }
   return buildSeed()
-}
-
-function loadSession(): string | null {
-  return sessionStorage.getItem(SESSION_KEY) ?? localStorage.getItem(SESSION_KEY)
 }
 
 type ToastTone = 'success' | 'error' | 'info'
@@ -114,6 +154,8 @@ interface StoreValue {
   apiEnabled: boolean
   toasts: ToastItem[]
   login: (email: string, password: string, remember: boolean) => Promise<string | null | { mustChangePassword: true }>
+  signup: (name: string, email: string) => Promise<{ ok: true; warning?: string } | { ok: false; error: string }>
+  listSignupRequests: () => Promise<{ id: string; firstName: string; lastName: string; name: string; email: string; createdAt: string }[]>
   logout: () => void
   toast: (message: string, tone?: ToastTone) => void
   dismissToast: (id: string) => void
@@ -127,9 +169,11 @@ interface StoreValue {
   >
   getResetTokenStatus: (rawToken: string) => Promise<'valid' | 'invalid' | 'expired' | 'used'>
   resetPasswordWithToken: (rawToken: string, nextPassword: string) => Promise<string | null>
+  getActivationStatus: (rawToken: string) => Promise<'valid' | 'invalid' | 'expired' | 'used'>
+  activateAccount: (rawToken: string, nextPassword: string) => Promise<string | null>
   addEmployee: (data: Omit<Employee, 'id' | 'employeeId' | 'password' | 'avatarHue'> & { password?: string }) => Employee
-  saveEmployee: (id: string, patch: Partial<Employee>) => void
-  deactivateEmployee: (id: string) => void
+  saveEmployee: (id: string, patch: Partial<Employee>) => Promise<string | null>
+  deactivateEmployee: (id: string) => Promise<string | null>
   addDepartment: (data: Omit<Department, 'id'>) => void
   saveDepartment: (id: string, patch: Partial<Department>) => void
   deleteDepartment: (id: string) => string | null
@@ -146,9 +190,9 @@ interface StoreValue {
     sickNoteName?: string | null
     sickNoteData?: string | null
     sickNoteMime?: string | null
-  }) => string | null
-  reviewLeave: (id: string, status: Exclude<RequestStatus, 'Pending'>, reviewerId: string, note: string) => void
-  attachSickNote: (leaveId: string, file: { name: string; data: string; mime: string }, actorId: string) => string | null
+  }) => Promise<string | null>
+  reviewLeave: (id: string, status: Exclude<RequestStatus, 'Pending'>, reviewerId: string, note: string) => Promise<void>
+  attachSickNote: (leaveId: string, file: { name: string; data: string; mime: string }, actorId: string) => Promise<string | null>
   canViewSickNote: (leaveId: string) => boolean
   getSickNote: (leaveId: string) => { name: string; data: string; mime: string } | null
   setUserRole: (employeeId: string, role: Role) => string | null
@@ -169,6 +213,7 @@ interface StoreValue {
     phone: string
     position?: string
     departmentId?: string
+    password?: string
   }) => Promise<{ error?: string; warning?: string }>
   createEmployeeAccount: (payload: {
     firstName: string
@@ -177,29 +222,25 @@ interface StoreValue {
     phone: string
     position?: string
     departmentId?: string
+    employmentType?: string
+    gender?: string
+    address?: string
+    dateOfBirth?: string
+    dateJoined?: string
+    basicSalary?: number
+    housingAllowance?: number
+    transportAllowance?: number
+    otherAllowance?: number
+    taxRate?: number
+    bankName?: string
+    accountNumber?: string
   }) => Promise<{ error?: string; warning?: string }>
   resendAdminCredentials: (userId: string) => Promise<{ error?: string; warning?: string }>
   resendEmployeeCredentials: (userId: string) => Promise<{ error?: string; warning?: string }>
   refreshDirectory: () => Promise<void>
-  saveInternship: (payload: Omit<Internship, 'id' | 'createdAt' | 'createdBy'> & { id?: string }, actorId: string) => string | null
-  setInternshipStatus: (id: string, status: InternshipStatus) => void
-  deleteInternship: (id: string) => void
-  applyInternship: (payload: {
-    internshipId: string
-    applicantId: string
-    name: string
-    email: string
-    phone: string
-    message: string
-    cvName?: string | null
-    cvData?: string | null
-    cvMime?: string | null
-  }) => string | null
-  reviewInternshipApplication: (
-    id: string,
-    status: InternshipApplicationStatus,
-    reviewerId: string,
-  ) => void
+  saveWorkshop: (payload: Omit<Workshop, 'id' | 'createdAt' | 'createdBy'> & { id?: string }) => Promise<string | null>
+  setWorkshopStatus: (id: string, status: WorkshopStatus) => Promise<string | null>
+  deleteWorkshop: (id: string) => Promise<string | null>
   markNotificationRead: (id: string) => void
   markAllRead: (userId: string) => void
 }
@@ -212,7 +253,7 @@ function persist(state: AppState) {
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(() => loadState())
-  const [userId, setUserId] = useState<string | null>(() => (getToken() ? null : loadSession()))
+  const [userId, setUserId] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(() => Boolean(getToken()))
   const [apiEnabled] = useState(true)
   const [toasts, setToasts] = useState<ToastItem[]>([])
@@ -257,6 +298,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         } catch {
           /* managers without employee list access */
         }
+      }
+      try {
+        const [leave, workshops, departments] = await Promise.all([
+          apiRequest<{ applications: LeaveRequest[]; balances: LeaveBalance[] }>('/leave'),
+          apiRequest<{ workshops: Workshop[] }>('/workshops'),
+          apiRequest<{ departments: { id: string; name: string; description: string }[] }>('/departments'),
+        ])
+        setState((s) => ({
+          ...s,
+          departments: mergeDepartments(s.departments, departments.departments),
+          leaveRequests: [
+            ...leave.applications,
+            ...s.leaveRequests.filter((r) => !isUuid(r.id)),
+          ],
+          leaveBalances: mergeBalances(s.leaveBalances, leave.balances),
+          workshops: workshops.workshops,
+        }))
+      } catch {
+        /* operational data sync waits until the password gate is cleared */
       }
     } catch {
       setToken(null)
@@ -334,14 +394,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setToken(data.token, remember)
       const emp = upsertApiUser(data.user)
       setUserId(emp.id)
-      sessionStorage.setItem(SESSION_KEY, emp.id)
-      if (remember) {
-        localStorage.setItem(SESSION_KEY, emp.id)
-        localStorage.setItem(REMEMBER_KEY, '1')
-      } else {
-        localStorage.removeItem(SESSION_KEY)
-        localStorage.removeItem(REMEMBER_KEY)
-      }
       try {
         await refreshDirectory()
       } catch {
@@ -350,16 +402,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (data.user.mustChangePassword) return { mustChangePassword: true as const }
       return null
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return err.message
+      if (err instanceof ApiError && err.status >= 500) {
+        return 'The HR service is not running. Start it with npm run dev:api, then try again.'
+      }
       if (err instanceof ApiError) return err.message
-      return 'Unable to reach the authentication server. Confirm the API is running.'
+      return 'Sign-in is unavailable. Check that the HR system is running and try again.'
     }
   }, [refreshDirectory, upsertApiUser])
+
+  const signup = useCallback(async (name: string, email: string) => {
+    try {
+      await apiRequest('/auth/signup', { method: 'POST', json: { name, email } })
+      saveLocalSignupRequest(name, email)
+      return { ok: true as const }
+    } catch (err) {
+      if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+        return { ok: false as const, error: err.message }
+      }
+      saveLocalSignupRequest(name, email)
+      return {
+        ok: true as const,
+        warning: 'Your details were saved for Human Resources. Login details will be emailed after your account is created.',
+      }
+    }
+  }, [])
+
+  const listSignupRequests = useCallback(async () => {
+    try {
+      const data = await apiRequest<{ requests: SignupRequest[] }>('/auth/signup-requests')
+      return data.requests.filter((row) => row.status !== 'completed')
+    } catch {
+      return readLocalSignupRequests().filter((row) => row.status === 'pending')
+    }
+  }, [])
 
   const logout = useCallback(() => {
     setUserId(null)
     setToken(null)
     sessionStorage.removeItem(SESSION_KEY)
     localStorage.removeItem(SESSION_KEY)
+    localStorage.removeItem('zamtech-hrms-remember')
     void apiRequest('/auth/logout', { method: 'POST' }).catch(() => undefined)
   }, [])
 
@@ -379,7 +462,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updateProfile = useCallback((id: string, patch: Partial<Employee>) => {
-    const { role: _role, password: _password, ...safe } = patch
+    const { role: _role, password: _password, gender: _gender, employeeId: _code, ...safe } = patch
     setState((s) => ({
       ...s,
       employees: s.employees.map((e) => (e.id === id ? { ...e, ...safe } : e)),
@@ -410,6 +493,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     phone: string
     position?: string
     departmentId?: string
+    password?: string
   }) => {
     try {
       const data = await apiRequest<{ user: ApiUser; emailSent: boolean; warning?: string }>('/admins', {
@@ -421,7 +505,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toast(data.warning, 'info')
         return { warning: data.warning }
       }
-      toast('Administrator created. Login credentials were emailed via Nexus.')
+      toast('Administrator account created. Share the temporary password with them securely.')
       return {}
     } catch (err) {
       return { error: err instanceof ApiError ? err.message : 'Could not create administrator.' }
@@ -435,6 +519,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     phone: string
     position?: string
     departmentId?: string
+    employmentType?: string
+    gender?: string
+    address?: string
+    dateOfBirth?: string
+    dateJoined?: string
+    basicSalary?: number
+    housingAllowance?: number
+    transportAllowance?: number
+    otherAllowance?: number
+    taxRate?: number
+    bankName?: string
+    accountNumber?: string
   }) => {
     try {
       const data = await apiRequest<{ user: ApiUser; emailSent: boolean; warning?: string }>('/employees', {
@@ -442,16 +538,73 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         json: payload,
       })
       upsertApiUser(data.user)
+      try {
+        await refreshDirectory()
+      } catch {
+        /* directory refresh is optional */
+      }
       if (data.warning) {
         toast(data.warning, 'info')
         return { warning: data.warning }
       }
-      toast('Employee created. Login credentials were emailed via Nexus.')
+      toast('Employee account created. An activation email with their employee number was sent.')
+      completeLocalSignupRequest(payload.email)
       return {}
     } catch (err) {
+      if (offlineDevAdmin(userId, err)) {
+        const year = new Date().getFullYear().toString().slice(2)
+        const emp: Employee = {
+          id: uid('e'),
+          employeeId: `ZTS-${year}${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`,
+          firstName: payload.firstName.trim(),
+          lastName: payload.lastName.trim(),
+          email: payload.email.trim().toLowerCase(),
+          password: '',
+          role: 'employee',
+          gender: (payload.gender as Employee['gender']) || 'Female',
+          dateOfBirth: payload.dateOfBirth || '1990-01-01',
+          phone: payload.phone || '',
+          address: payload.address || '',
+          departmentId: payload.departmentId || '',
+          position: payload.position || 'Team Member',
+          employmentType: (payload.employmentType as Employee['employmentType']) || 'Full-time',
+          dateJoined: payload.dateJoined || todayISO(),
+          managerId: null,
+          status: 'Active',
+          accountStatus: 'invited',
+          avatarHue: Math.floor(Math.random() * 360),
+          basicSalary: payload.basicSalary ?? 0,
+          housingAllowance: payload.housingAllowance ?? 0,
+          transportAllowance: payload.transportAllowance ?? 0,
+          otherAllowance: payload.otherAllowance ?? 0,
+          taxRate: payload.taxRate ?? 0,
+          bankName: payload.bankName || '',
+          accountNumber: payload.accountNumber || '',
+          emergencyContact: '',
+          emergencyPhone: '',
+        }
+        setState((s) => ({
+          ...s,
+          employees: [emp, ...s.employees],
+          leaveBalances: [...s.leaveBalances, {
+            employeeId: emp.id,
+            annual: s.leaveTypeDays['Annual Leave'],
+            sick: s.leaveTypeDays['Sick Leave'],
+            maternity: emp.gender === 'Female' ? s.leaveTypeDays['Maternity Leave'] : 0,
+            paternity: emp.gender === 'Male' ? s.leaveTypeDays['Paternity Leave'] : 0,
+            compassionate: s.leaveTypeDays['Compassionate Leave'],
+            study: s.leaveTypeDays['Study Leave'],
+            emergency: s.leaveTypeDays['Emergency Leave'],
+            unpaid: s.leaveTypeDays['Unpaid Leave'],
+          }],
+        }))
+        toast('Employee saved in this workspace. A database sign-in for them needs PostgreSQL.')
+        completeLocalSignupRequest(payload.email)
+        return {}
+      }
       return { error: err instanceof ApiError ? err.message : 'Could not create employee.' }
     }
-  }, [toast, upsertApiUser])
+  }, [refreshDirectory, toast, upsertApiUser, userId])
 
   const resendAdminCredentials = useCallback(async (userId: string) => {
     try {
@@ -478,10 +631,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toast(data.warning, 'info')
         return { warning: data.warning }
       }
-      toast('New temporary credentials were emailed.')
+      toast('A new activation email was sent.')
       return {}
     } catch (err) {
-      return { error: err instanceof ApiError ? err.message : 'Could not resend credentials.' }
+      return { error: err instanceof ApiError ? err.message : 'Could not resend the activation email.' }
     }
   }, [toast])
 
@@ -491,125 +644,67 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!isValidEmailFormat(trimmed)) return { ok: false as const, error: 'Enter a valid email address.' }
 
     const started = Date.now()
-    const emp = state.employees.find((e) => e.email.toLowerCase() === trimmed && e.status !== 'Inactive')
-
-    let resetPath: string | undefined
-
-    if (emp) {
-      try {
-        const rawToken = generateResetToken()
-        const tokenHash = await hashToken(rawToken)
-        const record: PasswordResetToken = {
-          id: uid('prt'),
-          userId: emp.id,
-          tokenHash,
-          expiresAt: resetTokenExpiresAt(),
-          usedAt: null,
-          createdAt: new Date().toISOString(),
-        }
-
-        const existing = mergeResetTokens(state.passwordResetTokens)
-        const nextTokens = [
-          record,
-          ...existing.map((t) =>
-            t.userId === emp.id && !t.usedAt
-              ? { ...t, usedAt: new Date().toISOString() }
-              : t,
-          ),
-        ]
-        // Persist immediately so the reset page can validate even before React re-renders
-        writeResetTokens(nextTokens)
-        setState((s) => ({ ...s, passwordResetTokens: nextTokens }))
-
-        const resetUrl = buildResetUrl(rawToken)
-        const sendResult = await sendPasswordResetEmail({
-          toEmail: emp.email,
-          toName: fullName(emp),
-          resetUrl,
-        })
-
-        if (sendResult.ok && sendResult.channel === 'local') {
-          resetPath = buildResetPath(rawToken)
-        }
-        if (!sendResult.ok) {
-          // Still allow local recovery when mail fails in this SPA environment
-          resetPath = buildResetPath(rawToken)
-        }
-      } catch {
-        return { ok: false as const, error: 'Could not create a reset link. Please try again.' }
-      }
+    try {
+      await apiRequest<{ ok: boolean }>('/auth/forgot-password', {
+        method: 'POST',
+        json: { email: trimmed },
+      })
+    } catch {
+      /* still return the generic success shape so accounts cannot be guessed */
     }
-
     const elapsed = Date.now() - started
     if (elapsed < 750) await delay(750 - elapsed)
-
-    return { ok: true as const, ...(resetPath ? { resetPath } : {}) }
-  }, [state.employees, state.passwordResetTokens])
+    return { ok: true as const }
+  }, [])
 
   const getResetTokenStatus = useCallback(async (rawToken: string) => {
     if (!rawToken || rawToken.length < 32) return 'invalid' as const
     try {
-      const tokenHash = await hashToken(rawToken)
-      const tokens = mergeResetTokens(state.passwordResetTokens)
-      const record = tokens.find((t) => t.tokenHash === tokenHash)
-      if (!record) return 'invalid' as const
-      if (record.usedAt) return 'used' as const
-      if (new Date(record.expiresAt).getTime() <= Date.now()) return 'expired' as const
-      const user = state.employees.find((e) => e.id === record.userId)
-      if (!user || user.status === 'Inactive') return 'invalid' as const
-      return 'valid' as const
+      const data = await apiRequest<{ status: 'valid' | 'invalid' | 'used' | 'expired' }>(
+        `/auth/reset-password?token=${encodeURIComponent(rawToken)}`,
+      )
+      return data.status
     } catch {
       return 'invalid' as const
     }
-  }, [state.employees, state.passwordResetTokens])
+  }, [])
 
   const resetPasswordWithToken = useCallback(async (rawToken: string, nextPassword: string) => {
     if (!nextPassword || nextPassword.length < 8) return 'Password must be at least 8 characters.'
-    let failure: string | null = null
-    let tokenHash: string
     try {
-      tokenHash = await hashToken(rawToken)
-    } catch {
-      return 'This reset link is no longer valid.'
-    }
-
-    setState((s) => {
-      const tokens = mergeResetTokens(s.passwordResetTokens)
-      const record = tokens.find((t) => t.tokenHash === tokenHash)
-      if (!record) {
-        failure = 'This reset link is no longer valid.'
-        return s
-      }
-      if (record.usedAt) {
-        failure = 'This reset link is no longer valid.'
-        return s
-      }
-      if (new Date(record.expiresAt).getTime() <= Date.now()) {
-        failure = 'This reset link is no longer valid.'
-        return s
-      }
-      const user = s.employees.find((e) => e.id === record.userId)
-      if (!user || user.status === 'Inactive') {
-        failure = 'This reset link is no longer valid.'
-        return s
-      }
-
-      const nextTokens = tokens.map((t) => {
-        if (t.id === record.id || (t.userId === record.userId && !t.usedAt)) {
-          return { ...t, usedAt: new Date().toISOString() }
-        }
-        return t
+      await apiRequest('/auth/reset-password', {
+        method: 'POST',
+        json: { token: rawToken, newPassword: nextPassword },
       })
-      writeResetTokens(nextTokens)
+      return null
+    } catch (err) {
+      return err instanceof ApiError ? err.message : 'This reset link is no longer valid.'
+    }
+  }, [])
 
-      return {
-        ...s,
-        employees: s.employees.map((e) => (e.id === record.userId ? { ...e, password: nextPassword } : e)),
-        passwordResetTokens: nextTokens,
-      }
-    })
+  const getActivationStatus = useCallback(async (rawToken: string) => {
+    if (!rawToken || rawToken.length < 32) return 'invalid' as const
+    try {
+      const data = await apiRequest<{ status: 'valid' | 'invalid' | 'expired' | 'used' }>(
+        `/auth/activate?token=${encodeURIComponent(rawToken)}`,
+      )
+      return data.status
+    } catch {
+      return 'invalid' as const
+    }
+  }, [])
 
-    return failure
+  const activateAccount = useCallback(async (rawToken: string, nextPassword: string) => {
+    if (!nextPassword || nextPassword.length < 8) return 'Password must be at least 8 characters.'
+    try {
+      await apiRequest('/auth/activate', {
+        method: 'POST',
+        json: { token: rawToken, newPassword: nextPassword },
+      })
+      return null
+    } catch (err) {
+      return err instanceof ApiError ? err.message : 'This activation link is no longer valid.'
+    }
   }, [])
 
   const addEmployee = useCallback((data: Omit<Employee, 'id' | 'employeeId' | 'password' | 'avatarHue'> & { password?: string }) => {
@@ -618,7 +713,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...data,
       id: uid('e'),
       employeeId: `ZTS-${year}${Math.floor(100 + Math.random() * 899)}`,
-      password: data.password || 'Aurelia@2026',
+      password: '',
       avatarHue: Math.floor(Math.random() * 360),
     }
     setState((s) => ({ ...s, employees: [emp, ...s.employees], leaveBalances: [...s.leaveBalances, {
@@ -627,6 +722,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sick: s.leaveTypeDays['Sick Leave'],
       maternity: emp.gender === 'Female' ? s.leaveTypeDays['Maternity Leave'] : 0,
       paternity: emp.gender === 'Male' ? s.leaveTypeDays['Paternity Leave'] : 0,
+      compassionate: s.leaveTypeDays['Compassionate Leave'],
+      study: s.leaveTypeDays['Study Leave'],
       emergency: s.leaveTypeDays['Emergency Leave'],
       unpaid: s.leaveTypeDays['Unpaid Leave'],
     }] }))
@@ -638,25 +735,74 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return emp
   }, [activity, notify, state.employees, toast])
 
-  const saveEmployee = useCallback((id: string, patch: Partial<Employee>) => {
-    const safe = currentUser?.role === 'admin' ? patch : (() => {
-      const { role: _role, ...rest } = patch
-      return rest
-    })()
+  const saveEmployee = useCallback(async (id: string, patch: Partial<Employee>) => {
+    const { role: _role, password: _password, ...safe } = patch
+    if (isUuid(id)) {
+      try {
+        const data = await apiRequest<{ user: ApiUser }>(`/employees/${id}`, {
+          method: 'PATCH',
+          json: {
+            firstName: safe.firstName,
+            lastName: safe.lastName,
+            email: safe.email,
+            phone: safe.phone,
+            address: safe.address,
+            departmentId: safe.departmentId,
+            position: safe.position,
+            employmentType: safe.employmentType,
+            status: safe.status,
+            dateJoined: safe.dateJoined,
+            gender: safe.gender,
+            dateOfBirth: safe.dateOfBirth,
+            employeeCode: safe.employeeId,
+            basicSalary: safe.basicSalary,
+            housingAllowance: safe.housingAllowance,
+            transportAllowance: safe.transportAllowance,
+            otherAllowance: safe.otherAllowance,
+            taxRate: safe.taxRate,
+            bankName: safe.bankName,
+            accountNumber: safe.accountNumber,
+          },
+        })
+        upsertApiUser(data.user)
+        toast('Employee updated successfully.')
+        return null
+      } catch (err) {
+        const message = err instanceof ApiError ? err.message : 'Could not update the employee.'
+        toast(message, 'error')
+        return message
+      }
+    }
     setState((s) => ({
       ...s,
-      employees: s.employees.map((e) => (e.id === id ? { ...e, ...safe } : e)),
+      employees: s.employees.map((e) => (e.id === id ? { ...e, ...safe, password: '' } : e)),
     }))
     toast('Employee updated successfully.')
-  }, [currentUser, toast])
+    return null
+  }, [toast, upsertApiUser])
 
-  const deactivateEmployee = useCallback((id: string) => {
+  const deactivateEmployee = useCallback(async (id: string) => {
+    if (isUuid(id)) {
+      try {
+        const data = await apiRequest<{ user: ApiUser }>(`/employees/${id}/deactivate`, {
+          method: 'POST',
+        })
+        upsertApiUser(data.user)
+        toast('Employee deactivated. They can no longer sign in.')
+        return null
+      } catch (err) {
+        const message = err instanceof ApiError ? err.message : 'Could not deactivate the employee.'
+        toast(message, 'error')
+        return message
+      }
+    }
     setState((s) => ({
       ...s,
-      employees: s.employees.map((e) => (e.id === id ? { ...e, status: 'Inactive' as const } : e)),
+      employees: s.employees.map((e) => (e.id === id ? { ...e, status: 'Inactive' as const, password: '' } : e)),
     }))
-    toast('Employee deleted successfully.')
-  }, [toast])
+    toast('Employee deactivated.')
+    return null
+  }, [toast, upsertApiUser])
 
   const addDepartment = useCallback((data: Omit<Department, 'id'>) => {
     setState((s) => ({ ...s, departments: [...s.departments, { ...data, id: uid('d') }] }))
@@ -751,7 +897,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toast('Clocked out successfully.')
   }, [state.attendance, toast])
 
-  const applyLeave = useCallback((payload: {
+  const applyLeave = useCallback(async (payload: {
     employeeId: string
     type: LeaveType
     startDate: string
@@ -764,48 +910,76 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!payload.startDate || !payload.endDate) return 'Choose start and end dates.'
     if (payload.endDate < payload.startDate) return 'End date cannot be before the start date.'
     if (!payload.reason.trim()) return 'Please share a short reason.'
-    const days = leaveDays(payload.startDate, payload.endDate)
-    const balance = state.leaveBalances.find((b) => b.employeeId === payload.employeeId)
-    const key = leaveKey(payload.type)
-    if (balance && balance[key] < days && payload.type !== 'Unpaid Leave') {
-      return `Only ${balance[key]} day(s) remaining for ${payload.type}.`
+    const applicant = state.employees.find((e) => e.id === payload.employeeId)
+    const blocked = leaveEligibilityError(applicant?.gender, payload.type)
+    if (blocked) return blocked
+    try {
+      const data = await apiRequest<{ application: LeaveRequest }>('/leave/applications', {
+        method: 'POST',
+        json: payload,
+      })
+      setState((s) => ({ ...s, leaveRequests: [data.application, ...s.leaveRequests.filter((r) => r.id !== data.application.id)] }))
+      const emp = applicant
+      state.employees
+        .filter((e) => e.role === 'admin' || e.role === 'manager' || e.role === 'super_admin' || e.id === emp?.managerId)
+        .forEach((e) => notify(e.id, 'Leave request awaiting review', `${emp ? fullName(emp) : 'An employee'} requested ${payload.type}.`, 'leave'))
+      if (emp) activity(`${fullName(emp)} submitted a ${payload.type.toLowerCase()} request`, 'leave')
+      toast('Leave request submitted.')
+      try {
+        await refreshDirectory()
+      } catch {
+        /* balance refresh is optional */
+      }
+      return null
+    } catch (err) {
+      if (offlineDevAdmin(userId, err)) {
+        const days = leaveDays(payload.startDate, payload.endDate)
+        const req: LeaveRequest = {
+          id: uid('l'),
+          employeeId: payload.employeeId,
+          type: payload.type,
+          startDate: payload.startDate,
+          endDate: payload.endDate,
+          reason: payload.reason,
+          days,
+          status: 'Pending',
+          reviewedBy: null,
+          reviewedAt: null,
+          reviewNote: '',
+          createdAt: new Date().toISOString(),
+          sickNoteName: payload.sickNoteName ?? null,
+          sickNoteData: payload.sickNoteData ?? null,
+          sickNoteMime: payload.sickNoteMime ?? null,
+        }
+        setState((s) => ({ ...s, leaveRequests: [req, ...s.leaveRequests] }))
+        toast('Leave request saved in this workspace.')
+        return null
+      }
+      if (err instanceof ApiError) return err.message
+      return 'Leave could not be submitted. Please try again.'
     }
-    const overlap = state.leaveRequests.some(
-      (r) =>
-        r.employeeId === payload.employeeId &&
-        r.status !== 'Rejected' &&
-        r.startDate <= payload.endDate &&
-        r.endDate >= payload.startDate,
-    )
-    if (overlap) return 'This overlaps an existing leave request.'
-    const req: LeaveRequest = {
-      id: uid('l'),
-      employeeId: payload.employeeId,
-      type: payload.type,
-      startDate: payload.startDate,
-      endDate: payload.endDate,
-      reason: payload.reason,
-      days,
-      status: 'Pending',
-      reviewedBy: null,
-      reviewedAt: null,
-      reviewNote: '',
-      createdAt: new Date().toISOString(),
-      sickNoteName: payload.sickNoteName ?? null,
-      sickNoteData: payload.sickNoteData ?? null,
-      sickNoteMime: payload.sickNoteMime ?? null,
-    }
-    setState((s) => ({ ...s, leaveRequests: [req, ...s.leaveRequests] }))
-    const emp = state.employees.find((e) => e.id === payload.employeeId)
-    state.employees
-      .filter((e) => e.role === 'admin' || e.role === 'manager' || e.id === emp?.managerId)
-      .forEach((e) => notify(e.id, 'Leave request awaiting review', `${emp ? fullName(emp) : 'An employee'} requested ${payload.type}.`, 'leave'))
-    if (emp) activity(`${fullName(emp)} submitted a ${payload.type.toLowerCase()} request`, 'leave')
-    toast('Leave request submitted.')
-    return null
-  }, [activity, notify, state.employees, state.leaveBalances, state.leaveRequests, toast])
+  }, [activity, notify, refreshDirectory, state.employees, toast, userId])
 
-  const reviewLeave = useCallback((id: string, status: Exclude<RequestStatus, 'Pending'>, reviewerId: string, note: string) => {
+  const reviewLeave = useCallback(async (id: string, status: Exclude<RequestStatus, 'Pending'>, reviewerId: string, note: string) => {
+    if (isUuid(id)) {
+      try {
+        const data = await apiRequest<{ application: LeaveRequest; balances: LeaveBalance[] }>(`/leave/applications/${id}/review`, {
+          method: 'POST',
+          json: { status, note },
+        })
+        setState((s) => ({
+          ...s,
+          leaveRequests: s.leaveRequests.map((r) => (r.id === id ? data.application : r)),
+          leaveBalances: mergeBalances(s.leaveBalances, data.balances || []),
+        }))
+        const label = status === 'Approved' ? 'approved' : status === 'Rejected' ? 'rejected' : 'updated'
+        notify(data.application.employeeId, `Leave ${label}`, `${data.application.type} was ${label}.`, 'leave')
+        toast(`Leave request ${label}.`)
+      } catch (err) {
+        toast(err instanceof ApiError ? err.message : 'Could not review this leave request.', 'error')
+      }
+      return
+    }
     const req = state.leaveRequests.find((r) => r.id === id)
     if (!req) return
     const reviewer = state.employees.find((e) => e.id === reviewerId)
@@ -860,7 +1034,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     )
   }, [notify, state.employees, state.leaveRequests, toast])
 
-  const attachSickNote = useCallback((leaveId: string, file: { name: string; data: string; mime: string }, actorId: string) => {
+  const attachSickNote = useCallback(async (leaveId: string, file: { name: string; data: string; mime: string }, actorId: string) => {
+    if (isUuid(leaveId)) {
+      try {
+        const data = await apiRequest<{ application: LeaveRequest }>(`/leave/applications/${leaveId}/sick-note`, {
+          method: 'POST',
+          json: file,
+        })
+        setState((s) => ({
+          ...s,
+          leaveRequests: s.leaveRequests.map((r) => (r.id === leaveId ? data.application : r)),
+        }))
+        toast('Medical certificate uploaded.')
+        return null
+      } catch (err) {
+        return err instanceof ApiError ? err.message : 'Could not upload the medical certificate.'
+      }
+    }
     const req = state.leaveRequests.find((r) => r.id === leaveId)
     if (!req) return 'Leave request not found.'
     if (req.type !== 'Sick Leave') return 'Medical certificates only apply to Sick Leave.'
@@ -934,135 +1124,85 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return 'Role changes are managed through Admin Management and Employee Management on the server.'
   }, [])
 
-  const saveInternship = useCallback((
-    payload: Omit<Internship, 'id' | 'createdAt' | 'createdBy'> & { id?: string },
-    actorId: string,
-  ) => {
-    const actor = state.employees.find((e) => e.id === actorId)
-    if (!actor || (actor.role !== 'admin' && actor.role !== 'manager' && actor.role !== 'super_admin')) {
-      return 'Only HR Managers and Administrators can manage internships.'
-    }
-    if (!payload.title.trim()) return 'Title is required.'
-    if (!payload.deadline) return 'Application deadline is required.'
-    if (payload.id) {
+  const saveWorkshop = useCallback(async (payload: Omit<Workshop, 'id' | 'createdAt' | 'createdBy'> & { id?: string }) => {
+    try {
+      const data = await apiRequest<{ workshop: Workshop }>(payload.id ? `/workshops/${payload.id}` : '/workshops', {
+        method: payload.id ? 'PATCH' : 'POST',
+        json: payload,
+      })
       setState((s) => ({
         ...s,
-        internships: s.internships.map((i) => (i.id === payload.id ? { ...i, ...payload, id: i.id, createdBy: i.createdBy, createdAt: i.createdAt } : i)),
+        workshops: [data.workshop, ...s.workshops.filter((w) => w.id !== data.workshop.id)],
       }))
-      toast('Internship announcement updated.')
+      activity(`Workshop saved: ${data.workshop.title}`, 'workshop')
+      toast(payload.id ? 'Workshop updated.' : 'Workshop scheduled.')
+      return null
+    } catch (err) {
+      if (!offlineDevAdmin(userId, err)) {
+        return err instanceof ApiError ? err.message : 'Could not save the workshop.'
+      }
+      const item: Workshop = {
+        ...payload,
+        id: payload.id || uid('ws'),
+        createdBy: userId,
+        createdAt: new Date().toISOString(),
+        participantIds: payload.participantIds || [],
+        departmentId: payload.departmentId || null,
+      }
+      setState((s) => ({
+        ...s,
+        workshops: [item, ...s.workshops.filter((w) => w.id !== item.id)],
+      }))
+      activity(`Workshop saved: ${item.title}`, 'workshop')
+      toast(payload.id ? 'Workshop updated.' : 'Workshop scheduled.')
       return null
     }
-    const item: Internship = {
-      id: uid('int'),
-      title: payload.title.trim(),
-      departmentId: payload.departmentId,
-      description: payload.description.trim(),
-      requirements: payload.requirements.trim(),
-      location: payload.location.trim(),
-      duration: payload.duration.trim(),
-      deadline: payload.deadline,
-      status: payload.status,
-      createdBy: actorId,
-      createdAt: new Date().toISOString(),
+  }, [activity, toast, userId])
+
+  const setWorkshopStatus = useCallback(async (id: string, status: WorkshopStatus) => {
+    try {
+      const data = await apiRequest<{ workshop: Workshop }>(`/workshops/${id}/status`, {
+        method: 'POST',
+        json: { status },
+      })
+      setState((s) => ({
+        ...s,
+        workshops: s.workshops.map((w) => (w.id === id ? data.workshop : w)),
+      }))
+      toast(status === 'Cancelled' ? 'Workshop cancelled.' : 'Workshop status updated.')
+      return null
+    } catch (err) {
+      if (!offlineDevAdmin(userId, err)) {
+        const message = err instanceof ApiError ? err.message : 'Could not update the workshop.'
+        toast(message, 'error')
+        return message
+      }
+      setState((s) => ({
+        ...s,
+        workshops: s.workshops.map((w) => (w.id === id ? { ...w, status } : w)),
+      }))
+      toast(status === 'Cancelled' ? 'Workshop cancelled.' : 'Workshop status updated.')
+      return null
     }
-    setState((s) => ({ ...s, internships: [item, ...s.internships] }))
-    activity(`Internship posted: ${item.title}`, 'internship')
-    toast(payload.status === 'Open' ? 'Internship published.' : 'Internship saved.')
-    return null
-  }, [activity, state.employees, toast])
+  }, [toast, userId])
 
-  const setInternshipStatus = useCallback((id: string, status: InternshipStatus) => {
-    setState((s) => ({
-      ...s,
-      internships: s.internships.map((i) => (i.id === id ? { ...i, status } : i)),
-    }))
-    toast(status === 'Open' ? 'Internship opened.' : 'Internship closed.')
-  }, [toast])
-
-  const deleteInternship = useCallback((id: string) => {
-    setState((s) => ({
-      ...s,
-      internships: s.internships.filter((i) => i.id !== id),
-      internshipApplications: s.internshipApplications.filter((a) => a.internshipId !== id),
-    }))
-    toast('Internship announcement removed.')
-  }, [toast])
-
-  const applyInternship = useCallback((payload: {
-    internshipId: string
-    applicantId: string
-    name: string
-    email: string
-    phone: string
-    message: string
-    cvName?: string | null
-    cvData?: string | null
-    cvMime?: string | null
-  }) => {
-    const post = state.internships.find((i) => i.id === payload.internshipId)
-    if (!post || post.status !== 'Open') return 'This internship is not open for applications.'
-    if (post.deadline < todayISO()) return 'The application deadline has passed.'
-    if (!payload.name.trim() || !payload.email.trim()) return 'Name and email are required.'
-    if (!payload.message.trim()) return 'Please include a short cover message.'
-    const duplicate = state.internshipApplications.some(
-      (a) => a.internshipId === payload.internshipId && a.applicantId === payload.applicantId && a.status !== 'Rejected',
-    )
-    if (duplicate) return 'You already have an application for this internship.'
-    const app: InternshipApplication = {
-      id: uid('ia'),
-      internshipId: payload.internshipId,
-      applicantId: payload.applicantId,
-      name: payload.name.trim(),
-      email: payload.email.trim(),
-      phone: payload.phone.trim(),
-      message: payload.message.trim(),
-      cvName: payload.cvName ?? null,
-      cvData: payload.cvData ?? null,
-      cvMime: payload.cvMime ?? null,
-      status: 'Pending',
-      submittedAt: new Date().toISOString(),
-      reviewedAt: null,
-      reviewedBy: null,
+  const deleteWorkshop = useCallback(async (id: string) => {
+    try {
+      await apiRequest(`/workshops/${id}`, { method: 'DELETE' })
+      setState((s) => ({ ...s, workshops: s.workshops.filter((w) => w.id !== id) }))
+      toast('Workshop removed.')
+      return null
+    } catch (err) {
+      if (!offlineDevAdmin(userId, err)) {
+        const message = err instanceof ApiError ? err.message : 'Could not delete the workshop.'
+        toast(message, 'error')
+        return message
+      }
+      setState((s) => ({ ...s, workshops: s.workshops.filter((w) => w.id !== id) }))
+      toast('Workshop removed.')
+      return null
     }
-    setState((s) => ({ ...s, internshipApplications: [app, ...s.internshipApplications] }))
-    state.employees
-      .filter((e) => e.role === 'admin' || e.role === 'manager')
-      .forEach((e) =>
-        notify(e.id, 'New internship application', `${app.name} applied for ${post.title}.`, 'internship'),
-      )
-    activity(`${app.name} applied for ${post.title}`, 'internship')
-    toast('Internship application submitted.')
-    return null
-  }, [activity, notify, state.employees, state.internshipApplications, state.internships, toast])
-
-  const reviewInternshipApplication = useCallback((
-    id: string,
-    status: InternshipApplicationStatus,
-    reviewerId: string,
-  ) => {
-    const reviewer = state.employees.find((e) => e.id === reviewerId)
-    if (!reviewer || (reviewer.role !== 'admin' && reviewer.role !== 'manager' && reviewer.role !== 'super_admin')) {
-      toast('You are not authorised to review applications.', 'error')
-      return
-    }
-    const app = state.internshipApplications.find((a) => a.id === id)
-    if (!app) return
-    setState((s) => ({
-      ...s,
-      internshipApplications: s.internshipApplications.map((a) =>
-        a.id === id
-          ? { ...a, status, reviewedAt: new Date().toISOString(), reviewedBy: reviewerId }
-          : a,
-      ),
-    }))
-    notify(
-      app.applicantId,
-      'Internship application update',
-      `Your application for ${state.internships.find((i) => i.id === app.internshipId)?.title ?? 'an internship'} is now: ${status}.`,
-      'internship',
-    )
-    toast('Application status updated.')
-  }, [notify, state.employees, state.internshipApplications, state.internships, toast])
+  }, [toast, userId])
 
   const markNotificationRead = useCallback((id: string) => {
     setState((s) => ({
@@ -1085,6 +1225,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     apiEnabled,
     toasts,
     login,
+    signup,
+    listSignupRequests,
     logout,
     toast,
     dismissToast,
@@ -1096,6 +1238,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     requestPasswordReset,
     getResetTokenStatus,
     resetPasswordWithToken,
+    getActivationStatus,
+    activateAccount,
     addEmployee,
     saveEmployee,
     deactivateEmployee,
@@ -1118,11 +1262,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     resendAdminCredentials,
     resendEmployeeCredentials,
     refreshDirectory,
-    saveInternship,
-    setInternshipStatus,
-    deleteInternship,
-    applyInternship,
-    reviewInternshipApplication,
+    saveWorkshop,
+    setWorkshopStatus,
+    deleteWorkshop,
     markNotificationRead,
     markAllRead,
   }

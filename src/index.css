@@ -669,6 +669,51 @@ img { max-width: 100%; }
   gap: 14px;
 }
 .vdash-stats-3 { grid-template-columns: repeat(3, 1fr); }
+.leave-balance-panel {
+  margin: 0 0 18px;
+  padding: 18px 18px 16px;
+  background: var(--card, #fffcf7);
+  border: 1px solid var(--line, #e4d9c8);
+  border-radius: 16px;
+}
+.leave-balance-head h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  color: var(--ink);
+}
+.leave-balance-head p {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 52ch;
+}
+.leave-balance-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.leave-balance-card {
+  background: #f7f1e8;
+  border-radius: 12px;
+  padding: 12px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.leave-balance-card span {
+  font-size: 12px;
+  color: var(--ink-soft, #6b5b4a);
+}
+.leave-balance-card strong {
+  font-size: 22px;
+  color: var(--ink);
+  line-height: 1.1;
+}
+.leave-balance-card em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--muted);
+}
 .vdash-stat {
   position: relative;
   overflow: hidden;
@@ -899,12 +944,14 @@ img { max-width: 100%; }
 @media (max-width: 1180px) {
   .vdash-stats,
   .vdash-stats-3 { grid-template-columns: repeat(2, 1fr); }
+  .leave-balance-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .vdash-charts,
   .vdash-bottom { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .vdash-stats,
   .vdash-stats-3 { grid-template-columns: 1fr; }
+  .leave-balance-grid { grid-template-columns: 1fr; }
   .vdash-donut-body { grid-template-columns: 1fr; }
   .topbar-user-meta { display: none; }
   .topbar-user { max-width: none; }
@@ -2491,6 +2538,29 @@ table.data td.col-actions {
   line-height: 1.5;
   max-width: 32ch;
 }
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 8px 0 18px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(92, 61, 46, 0.06);
+}
+.auth-tab {
+  text-align: center;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.auth-tab-active {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 4px 12px rgba(92, 61, 46, 0.12);
+}
 .auth-fields {
   display: flex;
   flex-direction: column;
@@ -2767,6 +2837,14 @@ table.data td.col-actions {
   text-align: center;
   font-size: 14px;
   color: var(--ink-soft);
+}
+.auth-access-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 20px;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  margin: 12px 0 0;
+  color: var(--ink);
 }
 
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

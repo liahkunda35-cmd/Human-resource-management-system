@@ -106,7 +106,9 @@ export function deptName(
   return departments.find((d) => d.id === id)?.name ?? '—'
 }
 
-export function leaveKey(type: LeaveType): 'annual' | 'sick' | 'maternity' | 'paternity' | 'emergency' | 'unpaid' {
+export function leaveKey(
+  type: LeaveType,
+): 'annual' | 'sick' | 'maternity' | 'paternity' | 'compassionate' | 'study' | 'emergency' | 'unpaid' {
   switch (type) {
     case 'Annual Leave':
       return 'annual'
@@ -116,6 +118,10 @@ export function leaveKey(type: LeaveType): 'annual' | 'sick' | 'maternity' | 'pa
       return 'maternity'
     case 'Paternity Leave':
       return 'paternity'
+    case 'Compassionate Leave':
+      return 'compassionate'
+    case 'Study Leave':
+      return 'study'
     case 'Emergency Leave':
       return 'emergency'
     default:

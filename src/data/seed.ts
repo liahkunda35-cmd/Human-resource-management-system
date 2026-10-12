@@ -3,16 +3,12 @@ import type {
   AttendanceRecord,
   Department,
   Employee,
-  Internship,
-  InternshipApplication,
   LeaveBalance,
   LeaveRequest,
   OrgSettings,
   Position,
 } from '../types'
 import { fullName } from '../types'
-
-export const DEMO_PASSWORD = 'Aurelia@2026'
 
 const settings: OrgSettings = {
   companyName: 'ZamTech Solutions Ltd',
@@ -27,10 +23,8 @@ const settings: OrgSettings = {
   workStart: '09:00',
 }
 
-function person(
-  data: Omit<Employee, 'password'> & { password?: string },
-): Employee {
-  return { password: DEMO_PASSWORD, ...data }
+function person(data: Omit<Employee, 'password'>): Employee {
+  return { password: '', ...data }
 }
 
 const employees: Employee[] = [
@@ -287,6 +281,8 @@ function leaveBalances(): LeaveBalance[] {
     sick: 8,
     maternity: e.gender === 'Female' ? 60 : 0,
     paternity: e.gender === 'Male' ? 10 : 0,
+    compassionate: 5,
+    study: 5,
     emergency: 3,
     unpaid: 5,
   }))
@@ -335,25 +331,6 @@ const leaveRequests: LeaveRequest[] = [
   },
 ]
 
-const internships: Internship[] = [
-  {
-    id: 'int1',
-    title: 'Software Development Internship',
-    departmentId: 'd2',
-    description: 'Internship opportunity for students interested in software development, APIs, and product delivery with the Information Technology team.',
-    requirements: 'Currently studying IT/Computer Science or related field\nBasic programming knowledge\nWillingness to learn in a team environment',
-    location: 'Lusaka',
-    duration: '3 Months',
-    deadline: '2026-10-15',
-    status: 'Open',
-    createdBy: 'e1',
-    createdAt: '2026-09-01T09:00:00',
-  },
-]
-
-const internshipApplications: InternshipApplication[] = []
-
-
 export function buildSeed(today = new Date(2026, 8, 7)): AppState {
   const attendance = generateAttendance(today)
   return {
@@ -363,8 +340,7 @@ export function buildSeed(today = new Date(2026, 8, 7)): AppState {
     attendance,
     leaveBalances: leaveBalances(),
     leaveRequests,
-    internships,
-    internshipApplications,
+    workshops: [],
     passwordResetTokens: [],
     notifications: [
       { id: 'n1', userId: 'e1', title: 'Leave request awaiting review', body: 'Chanda Mwila submitted sick leave for 8–9 Sep.', type: 'leave', read: false, createdAt: '2026-09-06T16:41:00' },
@@ -384,14 +360,11 @@ export function buildSeed(today = new Date(2026, 8, 7)): AppState {
       'Sick Leave': 10,
       'Maternity Leave': 60,
       'Paternity Leave': 10,
+      'Compassionate Leave': 5,
+      'Study Leave': 5,
       'Emergency Leave': 3,
       'Unpaid Leave': 5,
     },
   }
 }
 
-export const DEMO_ACCOUNTS = [
-  { label: 'Administrator', email: 'hr@zamtech.co.zm', password: DEMO_PASSWORD, role: 'Administrator' },
-  { label: 'HR Manager', email: 'manager@zamtech.co.zm', password: DEMO_PASSWORD, role: 'HR Manager' },
-  { label: 'Employee', email: 'employee@zamtech.co.zm', password: DEMO_PASSWORD, role: 'Employee' },
-]

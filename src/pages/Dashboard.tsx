@@ -49,6 +49,7 @@ function HrHome() {
   const present = attToday.filter((a) => ['Present', 'Late', 'Remote'].includes(a.status)).length
   const onLeave = active.filter((e) => e.status === 'On Leave').length
   const pendingLeave = state.leaveRequests.filter((l) => l.status === 'Pending').length
+  const upcomingWorkshops = state.workshops.filter((w) => w.status === 'Scheduled' && w.date >= today).length
 
   const chartData = useMemo(() => buildAttendanceSeries(state.attendance, range), [state.attendance, range])
 
@@ -87,6 +88,14 @@ function HrHome() {
         <StatCard icon={<CalendarCheck size={20} />} value={present} label="Present today" />
         <StatCard icon={<Leaf size={20} />} value={onLeave} label="On leave" />
         <StatCard icon={<TrendingUp size={20} />} value={pendingLeave} label="Pending leave" />
+      </div>
+      <div className="card" style={{ padding: 16, marginBottom: 16, cursor: 'pointer' }} onClick={() => navigate('/app/workshops')}>
+        <strong style={{ color: 'var(--ink)' }}>Scheduled Workshops</strong>
+        <p className="lede" style={{ marginTop: 4 }}>
+          {upcomingWorkshops === 0
+            ? 'No upcoming workshops. Open the schedule to plan one.'
+            : `${upcomingWorkshops} upcoming workshop${upcomingWorkshops === 1 ? '' : 's'}.`}
+        </p>
       </div>
 
       <div className="vdash-charts">
@@ -222,7 +231,7 @@ function ManagerHome() {
   const pending = state.leaveRequests.filter(
     (l) => l.status === 'Pending' || l.status === 'Requires Review' || l.status === 'Documentation Required',
   )
-  const newInternApps = state.internshipApplications.filter((a) => a.status === 'Pending').length
+  const upcomingWorkshops = state.workshops.filter((w) => w.status === 'Scheduled' && w.date >= today).length
 
   if (!currentUser) return null
 
@@ -233,12 +242,14 @@ function ManagerHome() {
         <StatCard icon={<CalendarCheck size={20} />} value={present} label="Present today" />
         <StatCard icon={<ClipboardList size={20} />} value={pending.length} label="Leave to review" />
       </div>
-      {newInternApps > 0 ? (
-        <div className="card" style={{ padding: 16, marginBottom: 16, cursor: 'pointer' }} onClick={() => navigate('/app/internships')}>
-          <strong style={{ color: 'var(--ink)' }}>Internship Management</strong>
-          <p className="lede" style={{ marginTop: 4 }}>{newInternApps} new application{newInternApps === 1 ? '' : 's'} awaiting review.</p>
-        </div>
-      ) : null}
+      <div className="card" style={{ padding: 16, marginBottom: 16, cursor: 'pointer' }} onClick={() => navigate('/app/workshops')}>
+        <strong style={{ color: 'var(--ink)' }}>Scheduled Workshops</strong>
+        <p className="lede" style={{ marginTop: 4 }}>
+          {upcomingWorkshops === 0
+            ? 'No upcoming workshops. Open the schedule to plan one.'
+            : `${upcomingWorkshops} upcoming workshop${upcomingWorkshops === 1 ? '' : 's'}.`}
+        </p>
+      </div>
       <DataTable empty={team.length === 0} emptyTitle="No team members" emptyBody="People in your department will appear here.">
         <thead>
           <tr>
@@ -285,6 +296,7 @@ function EmployeeHome() {
   const myLeave = currentUser
     ? state.leaveRequests.filter((l) => l.employeeId === currentUser.id).slice(0, 5)
     : []
+  const upcomingWorkshops = state.workshops.filter((w) => w.status === 'Scheduled' && w.date >= today).length
 
   if (!currentUser) return null
 
@@ -295,6 +307,14 @@ function EmployeeHome() {
         <StatCard icon={<DoorOpen size={20} />} value={att?.status ?? '—'} label="Today" />
         <StatCard icon={<Leaf size={20} />} value={bal?.annual ?? 0} label="Leave left" />
         <StatCard icon={<ClipboardList size={20} />} value={myLeave.filter((l) => l.status === 'Pending').length} label="Pending leave" />
+      </div>
+      <div className="card" style={{ padding: 16, marginBottom: 16, cursor: 'pointer' }} onClick={() => navigate('/app/workshops')}>
+        <strong style={{ color: 'var(--ink)' }}>Scheduled Workshops</strong>
+        <p className="lede" style={{ marginTop: 4 }}>
+          {upcomingWorkshops === 0
+            ? 'No workshops are scheduled for you yet.'
+            : `${upcomingWorkshops} upcoming workshop${upcomingWorkshops === 1 ? '' : 's'} for you.`}
+        </p>
       </div>
       <DataTable empty={myLeave.length === 0} emptyTitle="No leave requests" emptyBody="Your leave history will appear here.">
         <thead>

@@ -44,7 +44,7 @@ export function ChangePasswordPage() {
           <p className="auth-side-kicker">Security</p>
           <h3>Change temporary password</h3>
           <p className="auth-lede">
-            You signed in with a temporary password emailed to you. Choose a new password before continuing.
+            You signed in with a temporary password. Choose a new password before continuing.
           </p>
           {error ? <p className="auth-error" role="alert">{error}</p> : null}
           <div className="auth-fields">
